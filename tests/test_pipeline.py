@@ -239,6 +239,37 @@ async def test_pipeline_runs_doi_enrichers_after_author_sources(
 
 
 @pytest.mark.asyncio
+async def test_pipeline_bounds_doi_enrichment_per_author(fake_paper):
+    doi_source = StaticSource(
+        "crossref",
+        SourceResult(
+            "crossref",
+            SourceStatus.OK,
+            evidence=tuple(
+                Evidence(
+                    source="crossref",
+                    field="doi",
+                    value=f"10.1000/work-{index}",
+                    url=f"https://doi.org/10.1000/work-{index}",
+                    collected_at="2026-07-18T00:00:00Z",
+                    candidate_id="crossref:ada",
+                )
+                for index in range(30)
+            ),
+        ),
+    )
+    enricher = RecordingWorkEnricher()
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=(doi_source,)),
+        work_enrichers=(enricher,),
+        public_web_source=FakePublicWebSource(),
+    )
+    await pipeline.run("1706.03762")
+    assert len(enricher.dois) == 25
+
+
+@pytest.mark.asyncio
 async def test_pipeline_sanitizes_source_exceptions(fake_paper):
     pipeline = ResearchPipeline(
         paper_resolver=AsyncMock(return_value=fake_paper),

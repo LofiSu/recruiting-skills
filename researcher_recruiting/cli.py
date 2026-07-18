@@ -113,8 +113,8 @@ def _parser() -> argparse.ArgumentParser:
 async def run_cli(argv: Sequence[str]) -> int:
     try:
         args = _parser().parse_args(list(argv))
-    except SystemExit:
-        return 2
+    except SystemExit as error:
+        return int(error.code or 0)
     requested_sources = tuple(
         item.strip()
         for item in args.sources.split(",")

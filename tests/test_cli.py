@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -86,3 +88,18 @@ def test_default_pipeline_registers_only_callable_sources(settings):
     assert selected
     assert all(callable(getattr(source, "enrich", None)) for source in selected)
     assert Path(settings.cache_path).exists()
+
+
+def test_script_wrapper_does_not_shadow_package():
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/researcher_recruiting.py",
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "researcher-recruiting" in completed.stdout

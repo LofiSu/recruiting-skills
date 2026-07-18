@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from researcher_recruiting.models import AuthorSeed, SourceStatus
@@ -58,3 +60,26 @@ async def test_crossref_omits_mailto_and_returns_not_found_without_match(
     )
     assert enriched.status is SourceStatus.NOT_FOUND
     assert "mailto" not in crawler.last_params
+
+
+@pytest.mark.asyncio
+async def test_openalex_fetches_works_only_for_top_candidate(load_fixture):
+    authors = json.loads(load_fixture("openalex_authors.json"))
+    second = dict(authors["results"][0])
+    second["id"] = "https://openalex.org/A999"
+    second["display_name"] = "Another Ada Lovelace"
+    authors["results"].append(second)
+    crawler = sequential_fixture_crawler(
+        {
+            "https://api.openalex.org/authors": json.dumps(authors),
+            "https://api.openalex.org/works": load_fixture(
+                "openalex_works.json"
+            ),
+        }
+    )
+    await OpenAlexSource(crawler, api_key=None).enrich(
+        AuthorSeed(name="Ada Lovelace")
+    )
+    assert [
+        request.url for request in crawler.requests
+    ].count("https://api.openalex.org/works") == 1

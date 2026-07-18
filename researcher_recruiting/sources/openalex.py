@@ -46,7 +46,7 @@ class OpenAlexSource:
             return SourceResult(self.name, SourceStatus.NOT_FOUND)
 
         items = []
-        for author in authors:
+        for author_index, author in enumerate(authors):
             if not isinstance(author, dict) or not author.get("id"):
                 continue
             author_id = _short_openalex_id(author["id"])
@@ -114,6 +114,8 @@ class OpenAlexSource:
                         )
                     )
 
+            if author_index > 0:
+                continue
             works_response = await self.crawler.fetch(
                 OPENALEX_WORKS,
                 params={

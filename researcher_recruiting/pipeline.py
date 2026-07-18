@@ -147,7 +147,7 @@ class ResearchPipeline:
                     for item in evidence_items
                     if item.field == "doi" and item.value.strip()
                 )
-            )
+            )[:25]
             if self.work_enrichers:
                 work_results = tuple(
                     await asyncio.gather(
