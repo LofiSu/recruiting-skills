@@ -9,6 +9,7 @@ from researcher_recruiting.models import (
     PaperRecord,
     RunResult,
 )
+from researcher_recruiting.config import Settings
 
 
 @pytest.fixture
@@ -17,6 +18,26 @@ def load_fixture():
         return (Path(__file__).parent / "fixtures" / name).read_text(encoding="utf-8")
 
     return load
+
+
+@pytest.fixture
+def settings(tmp_path):
+    return Settings(
+        cache_path=tmp_path / "cache.sqlite3",
+        user_agent="researcher-recruiting-skill/test",
+        github_token=None,
+        semantic_scholar_api_key=None,
+        openalex_api_key=None,
+        ncbi_api_key=None,
+        unpaywall_email=None,
+        crossref_mailto=None,
+        orcid_client_id=None,
+        orcid_client_secret=None,
+        http_proxy=None,
+        https_proxy=None,
+        request_timeout_seconds=1,
+        max_response_bytes=64,
+    )
 
 
 @pytest.fixture
