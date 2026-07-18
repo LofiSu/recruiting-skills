@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dblpperson name="Ada Lovelace" pid="12/345">
+  <r>
+    <article key="journals/example/lovelace1843">
+      <author pid="12/345">Ada Lovelace</author>
+      <title>Notes on the Analytical Engine</title>
+      <year>1843</year>
+      <ee>https://doi.org/10.1000/analytical-engine</ee>
+    </article>
+  </r>
+</dblpperson>

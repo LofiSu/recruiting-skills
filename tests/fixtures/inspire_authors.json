@@ -1,0 +1,17 @@
+{
+  "hits": {
+    "total": 1,
+    "hits": [
+      {
+        "id": "123456",
+        "metadata": {
+          "name": {"value": "Lovelace, Ada"},
+          "orcid": "0000-0001-2345-6789",
+          "positions": [
+            {"institution": "Analytical Engines Institute", "current": true}
+          ]
+        }
+      }
+    ]
+  }
+}
