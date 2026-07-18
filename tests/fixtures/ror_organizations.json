@@ -1,0 +1,17 @@
+{
+  "number_of_results": 1,
+  "items": [
+    {
+      "id": "https://ror.org/012345678",
+      "names": [
+        {"value": "University of Example", "types": ["ror_display", "label"]}
+      ],
+      "locations": [
+        {"geonames_details": {"country_name": "Exampleland"}}
+      ],
+      "external_ids": [
+        {"type": "fundref", "all": ["100012345"], "preferred": "100012345"}
+      ]
+    }
+  ]
+}
