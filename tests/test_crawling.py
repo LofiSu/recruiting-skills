@@ -109,3 +109,25 @@ async def test_crawler_uses_cache_unless_refresh_requested(
     assert cached.from_cache is True
     assert refreshed.body == b"second"
     assert route.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_crawler_force_refresh_bypasses_cache(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    route = respx_mock.get("https://example.test/person").mock(
+        side_effect=[
+            httpx.Response(200, text="first"),
+            httpx.Response(200, text="second"),
+        ]
+    )
+    crawler = HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    )
+    first = await crawler.fetch("https://example.test/person")
+    crawler.force_refresh = True
+    second = await crawler.fetch("https://example.test/person")
+    assert first.body == b"first"
+    assert second.body == b"second"
+    assert route.call_count == 2

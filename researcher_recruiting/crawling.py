@@ -62,6 +62,7 @@ class HttpCrawler:
         self._domain_locks: dict[str, asyncio.Lock] = {}
         self._last_request_at: dict[str, float] = {}
         self._robots: dict[str, RobotFileParser] = {}
+        self.force_refresh = False
 
     def _client(self) -> httpx.AsyncClient:
         proxy = self.settings.https_proxy or self.settings.http_proxy
@@ -188,7 +189,7 @@ class HttpCrawler:
         target = str(httpx.URL(url, params=params))
         request_headers = dict(headers or {})
         key = cache_key("GET", target, request_headers)
-        if not refresh:
+        if not (refresh or self.force_refresh):
             cached = self.cache.get(key)
             if cached:
                 return FetchResult(
