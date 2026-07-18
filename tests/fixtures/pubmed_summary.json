@@ -1,0 +1,16 @@
+{
+  "result": {
+    "uids": ["12345678"],
+    "12345678": {
+      "uid": "12345678",
+      "title": "Analytical Engines in Biology",
+      "pubdate": "2025",
+      "source": "Example Journal",
+      "authors": [{"name": "Lovelace A"}],
+      "articleids": [
+        {"idtype": "doi", "value": "10.1000/biology-engine"},
+        {"idtype": "orcid", "value": "0000-0001-2345-6789"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "doi": "10.1000/example",
+  "title": "An Open Research Work",
+  "is_oa": true,
+  "oa_status": "gold",
+  "best_oa_location": {
+    "url": "https://repository.example.org/work",
+    "url_for_pdf": "https://repository.example.org/work.pdf",
+    "host_type": "publisher",
+    "license": "cc-by"
+  }
+}
