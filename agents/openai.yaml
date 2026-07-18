@@ -1,0 +1,4 @@
+interface:
+  display_name: "Researcher Recruiting"
+  short_description: "Build source-backed recruiting profiles from papers"
+  default_prompt: "Use $researcher-recruiting-skill to research every author of this arXiv paper and produce evidence-backed recruiting artifacts."
