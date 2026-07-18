@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -103,3 +104,22 @@ def test_script_wrapper_does_not_shadow_package():
     )
     assert completed.returncode == 0, completed.stderr
     assert "researcher-recruiting" in completed.stdout
+
+
+def test_default_pipeline_falls_back_when_user_cache_is_unwritable(
+    monkeypatch, settings
+):
+    attempted = []
+
+    class DenyingFirstCache:
+        def __init__(self, path):
+            attempted.append(Path(path))
+            if len(attempted) == 1:
+                raise PermissionError("sandbox denied user cache")
+
+    monkeypatch.setattr(
+        "researcher_recruiting.cli.SqliteCache", DenyingFirstCache
+    )
+    build_pipeline(settings)
+    assert attempted[0] == settings.cache_path
+    assert attempted[1].is_relative_to(Path(tempfile.gettempdir()))

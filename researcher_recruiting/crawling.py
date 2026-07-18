@@ -26,6 +26,7 @@ class FetchPolicy:
     max_attempts: int = 3
     base_delay_seconds: float = 0.25
     per_domain_delay_seconds: float = 0.5
+    max_retry_after_seconds: float = 30.0
     allowed_content_types: tuple[str, ...] = (
         "text/html",
         "text/plain",
@@ -172,7 +173,10 @@ class HttpCrawler:
                     return response
                 if attempt + 1 == self.policy.max_attempts:
                     return response
-                await asyncio.sleep(self._retry_delay(response, attempt))
+                retry_delay = self._retry_delay(response, attempt)
+                if retry_delay > self.policy.max_retry_after_seconds:
+                    return response
+                await asyncio.sleep(retry_delay)
             elif attempt + 1 < self.policy.max_attempts:
                 await asyncio.sleep(self.policy.base_delay_seconds * (2**attempt))
         assert last_error is not None

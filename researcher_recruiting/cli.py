@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import sys
+import tempfile
 from pathlib import Path
 from typing import Sequence
 
@@ -37,7 +38,15 @@ from researcher_recruiting.sources.wikidata import WikidataSource
 
 
 def build_pipeline(settings: Settings) -> ResearchPipeline:
-    cache = SqliteCache(settings.cache_path)
+    try:
+        cache = SqliteCache(settings.cache_path)
+    except OSError:
+        fallback_cache = (
+            Path(tempfile.gettempdir())
+            / "researcher-recruiting-skill"
+            / "cache.sqlite3"
+        )
+        cache = SqliteCache(fallback_cache)
     crawler = HttpCrawler(settings, cache)
     sources = {
         "openalex": OpenAlexSource(crawler, settings.openalex_api_key),

@@ -58,3 +58,24 @@ Second forward-test environment result:
 
 The Skill now reuses a validated temporary environment and requests network
 only when dependency installation or public API access actually needs it.
+
+## Root end-to-end result
+
+The final forward case was executed from the repository with:
+
+```bash
+RUN_NETWORK_TESTS=1 python -m pytest tests/test_network_e2e.py -m network -v
+```
+
+It passed against arXiv `1706.03762` and produced `report.md`,
+`candidates.csv`, `candidates.json`, `evidence.json`, and `run-log.json`.
+The run retained eight authors, field-level evidence, computer-science source
+routing, and locator-only links. Its run log separately recorded successful
+sources, `not_found`, `source_unavailable`, and `blocked_by_robots` outcomes.
+
+The live run also exposed two sandbox-specific failure modes now covered by
+regression tests:
+
+- An unwritable user cache directory falls back to a temporary cache.
+- A server's excessive `Retry-After` value cannot hold the workflow beyond the
+  configured retry budget.

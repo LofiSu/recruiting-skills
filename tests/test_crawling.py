@@ -41,6 +41,30 @@ async def test_crawler_honors_retry_after_then_succeeds(
 
 
 @pytest.mark.asyncio
+async def test_crawler_does_not_retry_beyond_retry_after_budget(
+    tmp_path, respx_mock, settings, monkeypatch
+):
+    async def no_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(
+        "researcher_recruiting.crawling.asyncio.sleep", no_sleep
+    )
+    allow_robots(respx_mock)
+    route = respx_mock.get("https://example.test/person").mock(
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "600"}),
+            httpx.Response(200, text="should-not-be-requested"),
+        ]
+    )
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/person")
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert route.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_crawler_rejects_unsupported_content_type(
     tmp_path, respx_mock, settings
 ):

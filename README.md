@@ -35,6 +35,8 @@ Optional environment variables:
 | `RESEARCHER_RECRUITING_CACHE` | SQLite cache location |
 
 Secrets are not written to reports, evidence, logs, or response-cache keys.
+If a sandbox cannot write the configured or platform-default cache directory,
+the CLI falls back to a cache under the system temporary directory.
 
 ## CLI
 
@@ -56,7 +58,9 @@ Every partial or complete run atomically creates:
 - `run-log.json`
 
 Inspect `run-log.json` to distinguish `not_found`, `source_unavailable`, and
-`blocked_by_robots`.
+`blocked_by_robots`. Rate-limited sources are retried within a bounded delay;
+an excessive server `Retry-After` value is recorded as unavailable instead of
+holding the entire run.
 
 ## Source matrix
 
