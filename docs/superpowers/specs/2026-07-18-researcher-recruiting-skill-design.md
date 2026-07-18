@@ -7,8 +7,8 @@ Build a reusable Codex skill and standalone Python CLI that accepts an arXiv pap
 The first version must:
 
 - parse an arXiv URL, arXiv identifier, or paper title;
-- retrieve public data from arXiv, OpenReview, Semantic Scholar, ORCID, GitHub, personal sites, and lab sites;
-- generate candidate search links for Google Scholar, LinkedIn, and Maimai without scraping restricted profiles;
+- retrieve public data from cross-disciplinary scholarly graphs, field-specific indexes, identity registries, code hosts, personal sites, and lab sites;
+- generate candidate search links for locator-only academic and professional platforms without scraping restricted profiles or result pages;
 - retain field-level source URLs and collection timestamps;
 - distinguish confirmed, probable, ambiguous, and not-found identities;
 - produce Markdown, CSV, JSON, evidence, and run-log artifacts;
@@ -34,7 +34,7 @@ The first version must:
 - Treating a matching name as sufficient proof of identity.
 - A hosted multi-user service, database, or MCP server in the first version.
 
-Google Scholar, LinkedIn, and Maimai are locator-only sources in the first version. The tool generates search URLs and marks them for human confirmation.
+Google Scholar, ResearchGate, Academia.edu, LinkedIn, Maimai, and commercial indexes without an authorized adapter are locator-only sources in the first version. The tool generates search URLs and marks them for human confirmation.
 
 ## 3. Chosen Approach
 
@@ -66,6 +66,7 @@ researcher-recruiting-skill/
 │   ├── cli.py
 │   ├── models.py
 │   ├── pipeline.py
+│   ├── source_registry.py
 │   ├── cache.py
 │   ├── crawling.py
 │   ├── identity.py
@@ -73,10 +74,22 @@ researcher-recruiting-skill/
 │   ├── exporters.py
 │   └── sources/
 │       ├── arxiv.py
+│       ├── openalex.py
+│       ├── crossref.py
+│       ├── datacite.py
+│       ├── opencitations.py
+│       ├── ror.py
 │       ├── openreview.py
 │       ├── semantic_scholar.py
 │       ├── orcid.py
 │       ├── github.py
+│       ├── dblp.py
+│       ├── pubmed.py
+│       ├── europe_pmc.py
+│       ├── unpaywall.py
+│       ├── wikidata.py
+│       ├── inspire.py
+│       ├── licensed.py
 │       └── public_web.py
 ├── references/
 │   ├── sources.md
@@ -108,25 +121,65 @@ researcher-recruiting-skill/
    - coauthors;
    - paper title;
    - research keywords.
-5. Query API-backed sources and eligible public web sources concurrently within per-domain limits.
-6. Follow identity links only from sufficiently credible public sources, such as an institutional homepage linking to ORCID or GitHub.
-7. Normalize source results into evidence records.
-8. Group candidate records that may represent the same person.
-9. Score each candidate identity using explicit evidence and conflicts.
-10. Generate locator-only search links for Google Scholar, LinkedIn, and Maimai.
-11. Export the report, candidate table, machine-readable records, evidence, and run log.
+5. Select source adapters from the paper categories and enabled credentials.
+6. Query cross-disciplinary, field-specific, and eligible public-web sources concurrently within per-domain limits.
+7. Follow identity links only from sufficiently credible public sources, such as an institutional homepage linking to ORCID or GitHub.
+8. Normalize source results into evidence records.
+9. Group candidate records that may represent the same person.
+10. Score each candidate identity using explicit evidence and conflicts.
+11. Generate locator-only search links for restricted or unsupported platforms.
+12. Export the report, candidate table, machine-readable records, evidence, and run log.
 
 The pipeline must continue when an optional source fails. It must stop only when the paper cannot be resolved or no author list can be established.
 
 ## 6. Source Strategy
 
-### API-backed sources
+### Always-on public sources
 
 - arXiv: authoritative paper metadata and author order.
-- OpenReview: public profiles, submissions, and public review activity where available.
+- OpenAlex: disambiguated authors, works, institutions, topics, and citation relationships.
+- Crossref: DOI, contributor, ORCID, ROR, publication, and funder metadata.
 - Semantic Scholar: paper-author graph, publications, citations, and author candidates.
 - ORCID: public researcher identifiers and public record fields within API terms.
+- DataCite: DOI metadata for datasets, software, preprints, and other research outputs.
+- OpenCitations: open DOI citation relationships.
+- ROR: normalized research-organization identities.
+- Wikidata: public identity links and institutional identifiers used only as supporting evidence.
 - GitHub: public accounts and repositories through the official API when possible.
+- OpenReview: public profiles, submissions, and public review activity where available.
+
+Sources are independent evidence lanes. Overlapping records must be deduplicated by durable identifiers such as DOI, ORCID, OpenAlex ID, PMID, and DBLP person key rather than counted as independent corroboration merely because multiple aggregators copied the same metadata.
+
+### Field-specific public sources
+
+- DBLP: enable for computer science, statistics/ML, and related electrical-engineering categories.
+- PubMed/NCBI E-utilities: enable for quantitative biology and biomedical categories.
+- Europe PMC: enable alongside PubMed for life-science publications, citations, ORCIDs, and open full-text links.
+- INSPIRE: enable for high-energy physics categories.
+- Unpaywall: query only after a DOI has been discovered to locate lawful open-access versions.
+
+The source registry maps arXiv category prefixes to field adapters. Always-on sources run for every paper. Field adapters run only when at least one category matches, or when the user explicitly enables a source.
+
+Initial routing rules:
+
+- `cs.*`, `stat.ML`, and `eess.*` -> DBLP.
+- `q-bio.*` -> PubMed and Europe PMC.
+- `hep-*` and `nucl-*` -> INSPIRE.
+- all categories -> always-on sources.
+
+Additional disciplines can be added by registering a new adapter without changing pipeline or exporter code.
+
+### Licensed or credential-gated sources
+
+- Scopus.
+- Web of Science.
+- Dimensions.
+- Lens.
+- NASA ADS.
+- IEEE Xplore.
+- Springer Nature.
+
+The first release includes a descriptor and locator for each licensed platform. A platform becomes an active data source only when a source-specific official API adapter is registered and its required credential is present; a generic credential is never sent to an unverified endpoint. Without an authorized adapter, the platform remains locator-only. Active adapters must use official APIs, report `source_unavailable` for authorization failures, and never fall back to scraping licensed pages.
 
 ### Public-web sources
 
@@ -151,10 +204,13 @@ HTTP fetching is the default. JavaScript browser automation is not required for 
 ### Locator-only sources
 
 - Google Scholar.
+- ResearchGate.
+- Academia.edu.
 - LinkedIn.
 - Maimai.
+- Scopus and Web of Science when no authorized API integration is configured.
 
-For these sources, generate encoded search URLs using the researcher's name plus institution or topic. Do not request or parse the resulting profile pages.
+For these sources, generate encoded search URLs using the researcher's name plus institution or topic. Do not request or parse the resulting profile or result pages. A locator-only platform may be promoted to an API-backed source only through an official, authorized API adapter.
 
 ## 7. Identity Resolution
 
@@ -217,8 +273,8 @@ Each candidate record includes:
 - current public affiliation, role, and location when found;
 - public email and email domain when found;
 - personal and lab homepages;
-- OpenReview, Semantic Scholar, ORCID, and GitHub URLs;
-- Google Scholar, LinkedIn, and Maimai locator URLs;
+- durable scholarly identifiers and URLs returned by enabled sources;
+- Google Scholar, ResearchGate, Academia.edu, LinkedIn, Maimai, and unavailable licensed-source locator URLs;
 - identity state and numeric confidence;
 - human-readable match reasons;
 - field-level source references;
@@ -239,7 +295,12 @@ Support optional source credentials through environment variables:
 
 - `GITHUB_TOKEN`
 - `SEMANTIC_SCHOLAR_API_KEY`
+- `OPENALEX_API_KEY`
+- `NCBI_API_KEY`
+- `UNPAYWALL_EMAIL`
+- `CROSSREF_MAILTO`
 - ORCID public-client credentials if the selected endpoints require them.
+- Optional official-API credentials for licensed adapters, using source-specific variables documented in `references/sources.md`.
 
 Do not store secrets, browser cookies, or authenticated session data in source files, output artifacts, logs, fixtures, or caches. Redact authorization headers and secret-looking query parameters from errors.
 
@@ -261,6 +322,7 @@ The CLI must still produce useful partial output when optional credentials are a
 ### Code tests
 
 - Parser fixtures for arXiv XML/HTML and each supported source format.
+- Source-registry tests covering always-on, category-routed, explicitly enabled, disabled, and credential-gated adapters.
 - Identity fixtures covering:
   - common names;
   - Chinese and Western name-order variants;
@@ -321,4 +383,5 @@ The following items are intentionally deferred:
 - recruiter collaboration and permissions;
 - automated outreach;
 - authenticated access to professional networks;
+- unofficial Google Scholar scraping or third-party credential sharing;
 - JavaScript-browser crawling for sites that do not expose public HTML.

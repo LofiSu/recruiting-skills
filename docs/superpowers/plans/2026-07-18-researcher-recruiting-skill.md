@@ -4,7 +4,7 @@
 
 **Goal:** Build a Codex skill and standalone Python CLI that turns an arXiv paper into a source-backed researcher recruiting report using public APIs and compliant public-web crawling.
 
-**Architecture:** A small Python package owns deterministic fetching, parsing, evidence normalization, identity resolution, and exports. A thin script exposes the package to Codex, while `SKILL.md` defines when and how Codex invokes it and preserves the locator-only boundary for Google Scholar, LinkedIn, and Maimai.
+**Architecture:** A small Python package owns deterministic fetching, category-based source routing, parsing, evidence normalization, identity resolution, and exports. A thin script exposes the package to Codex, while `SKILL.md` defines when and how Codex invokes it and preserves the locator-only boundary for restricted and unlicensed platforms.
 
 **Tech Stack:** Python 3.11+, `httpx`, `beautifulsoup4`, `platformdirs`, `pytest`, `pytest-asyncio`, `respx`, standard-library `dataclasses`, `asyncio`, `csv`, `json`, `sqlite3`, and `urllib.robotparser`.
 
@@ -12,6 +12,9 @@
 
 - Use only public APIs and public pages; do not bypass authentication, CAPTCHA, paywalls, access controls, or anti-bot systems.
 - Treat Google Scholar, LinkedIn, and Maimai as locator-only sources; never request or parse their profile/result pages.
+- Keep ResearchGate and Academia.edu locator-only, and keep licensed scholarly platforms locator-only unless an official authorized API adapter is configured.
+- Run OpenAlex, Crossref, Semantic Scholar, ORCID, DataCite, ROR, Wikidata, GitHub, and OpenReview as cross-disciplinary lanes; route DBLP, PubMed, Europe PMC, and INSPIRE by arXiv category.
+- Deduplicate copied scholarly metadata by DOI, ORCID, OpenAlex ID, PMID, and DBLP person key before scoring evidence.
 - Keep secrets in environment variables and redact authorization material from caches, logs, fixtures, and outputs.
 - Preserve field-level provenance and collection timestamps for every populated identity field.
 - Distinguish `not_found` from `source_unavailable`.
@@ -31,14 +34,27 @@
 - `researcher_recruiting/crawling.py`: robots-aware HTTP fetching, retries, size limits, and per-domain throttling.
 - `researcher_recruiting/sources/base.py`: source-client protocol and shared helpers.
 - `researcher_recruiting/sources/arxiv.py`: arXiv input parsing, title search, and Atom parsing.
+- `researcher_recruiting/sources/openalex.py`: disambiguated author/work/institution graph.
+- `researcher_recruiting/sources/crossref.py`: DOI and contributor metadata.
+- `researcher_recruiting/sources/datacite.py`: research-output DOI metadata.
+- `researcher_recruiting/sources/opencitations.py`: DOI citation enrichment.
+- `researcher_recruiting/sources/ror.py`: institution normalization.
+- `researcher_recruiting/sources/wikidata.py`: supporting public identity links.
 - `researcher_recruiting/sources/semantic_scholar.py`: paper/author enrichment.
 - `researcher_recruiting/sources/openreview.py`: OpenReview profile search and normalization.
 - `researcher_recruiting/sources/orcid.py`: optional authenticated public-API search.
 - `researcher_recruiting/sources/github.py`: GitHub public-user search and profile enrichment.
+- `researcher_recruiting/sources/dblp.py`: computer-science author and publication search.
+- `researcher_recruiting/sources/pubmed.py`: NCBI author/publication search.
+- `researcher_recruiting/sources/europe_pmc.py`: life-science publication and citation search.
+- `researcher_recruiting/sources/inspire.py`: high-energy-physics author and literature search.
+- `researcher_recruiting/sources/unpaywall.py`: DOI-based lawful open-access discovery.
+- `researcher_recruiting/sources/licensed.py`: official-API descriptors for credential-gated scholarly platforms.
 - `researcher_recruiting/sources/public_web.py`: crawl credible homepage URLs already surfaced by trusted sources.
 - `researcher_recruiting/search_links.py`: locator-only URL generation.
 - `researcher_recruiting/identity.py`: deterministic grouping, conflict detection, scoring, and state assignment.
 - `researcher_recruiting/pipeline.py`: concurrent source orchestration and partial-failure semantics.
+- `researcher_recruiting/source_registry.py`: always-on, category-routed, explicitly enabled, and licensed source selection.
 - `researcher_recruiting/exporters.py`: stable Markdown, CSV, JSON, evidence, and run-log artifacts.
 - `researcher_recruiting/cli.py`: argument parsing and process exit semantics.
 - `scripts/researcher_recruiting.py`: stable Codex-facing wrapper.
@@ -293,6 +309,10 @@ class Settings:
     user_agent: str
     github_token: str | None
     semantic_scholar_api_key: str | None
+    openalex_api_key: str | None
+    ncbi_api_key: str | None
+    unpaywall_email: str | None
+    crossref_mailto: str | None
     orcid_client_id: str | None
     orcid_client_secret: str | None
     http_proxy: str | None
@@ -311,6 +331,10 @@ class Settings:
             ),
             github_token=os.getenv("GITHUB_TOKEN"),
             semantic_scholar_api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
+            openalex_api_key=os.getenv("OPENALEX_API_KEY"),
+            ncbi_api_key=os.getenv("NCBI_API_KEY"),
+            unpaywall_email=os.getenv("UNPAYWALL_EMAIL"),
+            crossref_mailto=os.getenv("CROSSREF_MAILTO"),
             orcid_client_id=os.getenv("ORCID_CLIENT_ID"),
             orcid_client_secret=os.getenv("ORCID_CLIENT_SECRET"),
             http_proxy=os.getenv("HTTP_PROXY"),
@@ -750,7 +774,478 @@ git commit -m "feat: add semantic scholar and openreview sources"
 
 ---
 
-### Task 5: ORCID and GitHub Source Clients
+### Task 5: OpenAlex and Crossref Cross-Disciplinary Sources
+
+**Files:**
+- Create: `researcher_recruiting/sources/openalex.py`
+- Create: `researcher_recruiting/sources/crossref.py`
+- Create: `tests/fixtures/openalex_authors.json`
+- Create: `tests/fixtures/crossref_works.json`
+- Test: `tests/test_cross_disciplinary_sources.py`
+
+**Interfaces:**
+- Consumes: `AuthorSeed`, `HttpCrawler`, and optional `OPENALEX_API_KEY`.
+- Produces: `OpenAlexSource.enrich(seed)` and `CrossrefSource.enrich(seed)`.
+
+- [ ] **Step 1: Write failing author/work normalization tests**
+
+```python
+@pytest.mark.asyncio
+async def test_openalex_emits_author_institution_orcid_and_works(load_fixture):
+    crawler = fixture_crawler(
+        "https://api.openalex.org/authors",
+        load_fixture("openalex_authors.json"),
+    )
+    result = await OpenAlexSource(crawler, api_key="free-key").enrich(
+        AuthorSeed(name="Ada Lovelace", affiliation="Analytical Engines")
+    )
+    fields = {item.field for item in result.evidence}
+    assert {"openalex", "affiliation", "paper_title"} <= fields
+    assert crawler.last_params["search"] == "Ada Lovelace"
+
+
+@pytest.mark.asyncio
+async def test_crossref_emits_doi_orcid_and_contributor_works(load_fixture):
+    crawler = fixture_crawler(
+        "https://api.crossref.org/works",
+        load_fixture("crossref_works.json"),
+    )
+    result = await CrossrefSource(
+        crawler, mailto="maintainer@example.com"
+    ).enrich(AuthorSeed(name="Ada Lovelace"))
+    assert any(item.field == "doi" for item in result.evidence)
+    assert any(item.field == "orcid" for item in result.evidence)
+    assert crawler.last_params["query.author"] == "Ada Lovelace"
+```
+
+Add fixture constructors to `tests/helpers.py`:
+
+```python
+def fixture_crawler(
+    url: str,
+    json_text: str,
+    content_type: str = "application/json",
+) -> StubCrawler:
+    return StubCrawler({
+        url: [
+            FetchResult(
+                SourceStatus.OK,
+                url,
+                200,
+                content_type,
+                json_text.encode(),
+                False,
+            )
+        ]
+    })
+
+
+def sequential_fixture_crawler(
+    responses: Mapping[str, str],
+) -> StubCrawler:
+    return StubCrawler({
+        url: [
+            FetchResult(
+                SourceStatus.OK,
+                url,
+                200,
+                "application/json",
+                body.encode(),
+                False,
+            )
+        ]
+        for url, body in responses.items()
+    })
+```
+
+- [ ] **Step 2: Run and verify RED**
+
+Run:
+
+```bash
+python -m pytest tests/test_cross_disciplinary_sources.py -v
+```
+
+Expected: imports fail for `openalex` and `crossref`.
+
+- [ ] **Step 3: Implement both official REST clients**
+
+OpenAlex:
+
+```python
+GET https://api.openalex.org/authors
+params = {
+    "search": seed.name,
+    "per-page": "10",
+    "select": "id,display_name,orcid,last_known_institutions,works_count,cited_by_count,summary_stats,x_concepts",
+    "api_key": api_key,  # omit when absent
+}
+```
+
+Fetch the top candidate works through `/works?filter=author.id:<id>&per-page=25` and emit OpenAlex ids, ORCID, institutions, work DOI/title/year, topics, and citation summary under `candidate_id="openalex:<id>"`.
+
+Crossref:
+
+```python
+GET https://api.crossref.org/works
+params = {
+    "query.author": seed.name,
+    "rows": "25",
+    "select": "DOI,title,author,published,container-title,relation,reference",
+    "mailto": mailto,
+}
+```
+
+Match the contributor within each returned work before assigning the DOI/title to a candidate. Preserve contributor ORCID and affiliation when deposited. Use `CROSSREF_MAILTO` when configured and omit `mailto` otherwise.
+
+- [ ] **Step 4: Run and verify GREEN**
+
+Run:
+
+```bash
+python -m pytest tests/test_cross_disciplinary_sources.py -v
+```
+
+Expected: OpenAlex and Crossref tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add researcher_recruiting/sources/openalex.py researcher_recruiting/sources/crossref.py tests
+git commit -m "feat: add openalex and crossref sources"
+```
+
+---
+
+### Task 6: Research Identifier, Organization, and Citation Sources
+
+**Files:**
+- Create: `researcher_recruiting/sources/datacite.py`
+- Create: `researcher_recruiting/sources/ror.py`
+- Create: `researcher_recruiting/sources/wikidata.py`
+- Create: `researcher_recruiting/sources/opencitations.py`
+- Create: `tests/fixtures/datacite_dois.json`
+- Create: `tests/fixtures/ror_organizations.json`
+- Create: `tests/fixtures/wikidata_bindings.json`
+- Create: `tests/fixtures/opencitations_citations.json`
+- Test: `tests/test_identifier_sources.py`
+
+**Interfaces:**
+- Consumes: `AuthorSeed`, `HttpCrawler`, discovered DOI/affiliation evidence.
+- Produces: `DataCiteSource.enrich(seed)`, `RorSource.normalize_affiliation(name)`, `WikidataSource.enrich(seed)`, and `OpenCitationsEnricher.enrich_dois(dois)`.
+
+- [ ] **Step 1: Write failing normalization and provenance tests**
+
+```python
+@pytest.mark.asyncio
+async def test_datacite_emits_research_output_dois(load_fixture):
+    source = DataCiteSource(fixture_crawler(
+        "https://api.datacite.org/dois",
+        load_fixture("datacite_dois.json"),
+    ))
+    result = await source.enrich(AuthorSeed(name="Ada Lovelace"))
+    assert any(item.field == "doi" for item in result.evidence)
+    assert all(item.candidate_id.startswith("datacite:") for item in result.evidence)
+
+
+@pytest.mark.asyncio
+async def test_ror_normalizes_affiliation_without_identifying_person(load_fixture):
+    source = RorSource(fixture_crawler(
+        "https://api.ror.org/v2/organizations",
+        load_fixture("ror_organizations.json"),
+    ))
+    evidence = await source.normalize_affiliation("University of Example")
+    assert evidence.field == "ror"
+    assert evidence.metadata["matched_name"] == "University of Example"
+
+
+@pytest.mark.asyncio
+async def test_wikidata_is_supporting_evidence_only(load_fixture):
+    source = WikidataSource(fixture_crawler(
+        "https://query.wikidata.org/sparql",
+        load_fixture("wikidata_bindings.json"),
+    ))
+    result = await source.enrich(AuthorSeed(name="Ada Lovelace"))
+    assert result.evidence
+    assert all(item.metadata["strength"] == "supporting" for item in result.evidence)
+
+
+@pytest.mark.asyncio
+async def test_opencitations_enriches_only_discovered_dois(load_fixture):
+    source = OpenCitationsEnricher(fixture_crawler(
+        "https://opencitations.net/index/coci/api/v1/citations/10.1000/example",
+        load_fixture("opencitations_citations.json"),
+    ))
+    result = await source.enrich_dois(("10.1000/example",))
+    assert any(item.field == "citation_doi" for item in result.evidence)
+```
+
+- [ ] **Step 2: Run and verify RED**
+
+Run:
+
+```bash
+python -m pytest tests/test_identifier_sources.py -v
+```
+
+Expected: the four modules do not exist.
+
+- [ ] **Step 3: Implement bounded official API adapters**
+
+Use:
+
+```text
+GET https://api.datacite.org/dois?query=creators.name:"<name>"&page[size]=25
+GET https://api.ror.org/v2/organizations?query=<affiliation>
+GET https://query.wikidata.org/sparql?query=<parameterized SPARQL>&format=json
+GET https://opencitations.net/index/coci/api/v1/citations/<url-encoded-doi>
+```
+
+DataCite emits DOI, ORCID, titles, publisher, dates, and related identifiers. ROR emits organization identifiers only and never creates a person candidate. Wikidata accepts exact/alias person matches but labels every fact supporting-only until corroborated by ORCID or institutional links. OpenCitations runs only on DOIs already discovered by another source and its citation records do not independently increase identity confidence.
+
+- [ ] **Step 4: Run and verify GREEN**
+
+Run:
+
+```bash
+python -m pytest tests/test_identifier_sources.py -v
+```
+
+Expected: all identifier-source tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add researcher_recruiting/sources tests/fixtures tests/test_identifier_sources.py
+git commit -m "feat: add research identifier graph sources"
+```
+
+---
+
+### Task 7: Source Registry and Computer/Physics Routing
+
+**Files:**
+- Create: `researcher_recruiting/source_registry.py`
+- Create: `researcher_recruiting/sources/dblp.py`
+- Create: `researcher_recruiting/sources/inspire.py`
+- Create: `tests/fixtures/dblp_authors.json`
+- Create: `tests/fixtures/inspire_authors.json`
+- Test: `tests/test_source_registry.py`
+- Test: `tests/test_domain_sources.py`
+
+**Interfaces:**
+- Consumes: paper category strings, available source instances, and explicit source names.
+- Produces: `SourceRegistry.select(categories, requested=())`, `DblpSource.enrich(seed)`, and `InspireSource.enrich(seed)`.
+
+- [ ] **Step 1: Write failing selection and domain-source tests**
+
+```python
+def test_registry_selects_always_on_and_cs_sources():
+    registry = SourceRegistry(
+        sources={"openalex": object(), "crossref": object(), "dblp": object()},
+        always_on=("openalex", "crossref"),
+        category_routes={"cs.": ("dblp",)},
+    )
+    assert registry.selected_names(("cs.CL",)) == (
+        "openalex", "crossref", "dblp"
+    )
+
+
+def test_registry_does_not_run_biomedical_sources_for_math():
+    registry = build_test_registry()
+    assert "pubmed" not in registry.selected_names(("math.OC",))
+
+
+def test_registry_accepts_explicit_source_override():
+    registry = build_test_registry()
+    assert "dblp" in registry.selected_names(("math.OC",), requested=("dblp",))
+
+
+@pytest.mark.asyncio
+async def test_dblp_emits_person_key_and_publications(load_fixture):
+    result = await DblpSource(fixture_crawler(
+        "https://dblp.org/search/author/api",
+        load_fixture("dblp_authors.json"),
+    )).enrich(AuthorSeed(name="Ada Lovelace"))
+    assert any(item.field == "dblp" for item in result.evidence)
+
+
+@pytest.mark.asyncio
+async def test_inspire_emits_author_and_literature_ids(load_fixture):
+    result = await InspireSource(fixture_crawler(
+        "https://inspirehep.net/api/authors",
+        load_fixture("inspire_authors.json"),
+    )).enrich(AuthorSeed(name="Ada Lovelace"))
+    assert any(item.field == "inspire" for item in result.evidence)
+```
+
+- [ ] **Step 2: Run and verify RED**
+
+Run:
+
+```bash
+python -m pytest tests/test_source_registry.py tests/test_domain_sources.py -v
+```
+
+Expected: source registry and domain modules are missing.
+
+- [ ] **Step 3: Implement deterministic routing**
+
+Default registry:
+
+```python
+ALWAYS_ON = (
+    "openalex", "crossref", "semantic_scholar", "orcid",
+    "datacite", "ror", "wikidata", "github", "openreview",
+)
+CATEGORY_ROUTES = {
+    "cs.": ("dblp",),
+    "stat.ML": ("dblp",),
+    "eess.": ("dblp",),
+    "q-bio.": ("pubmed", "europe_pmc"),
+    "hep-": ("inspire",),
+    "nucl-": ("inspire",),
+}
+```
+
+Preserve declared order, deduplicate names, reject unknown explicit sources with `ValueError`, and expose selected source names in `run-log.json`.
+
+DBLP:
+
+```text
+GET https://dblp.org/search/author/api?q=<name>&format=json&h=10
+GET <returned-author-url>.xml
+```
+
+INSPIRE:
+
+```text
+GET https://inspirehep.net/api/authors?q=name.raw:"<name>"&size=10
+GET https://inspirehep.net/api/literature?q=a+<record-id>&size=25
+```
+
+- [ ] **Step 4: Run and verify GREEN**
+
+Run:
+
+```bash
+python -m pytest tests/test_source_registry.py tests/test_domain_sources.py -v
+```
+
+Expected: registry, DBLP, and INSPIRE tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add researcher_recruiting/source_registry.py researcher_recruiting/sources tests
+git commit -m "feat: route computer and physics scholarly sources"
+```
+
+---
+
+### Task 8: Biomedical, Open-Access, and Licensed Source Descriptors
+
+**Files:**
+- Create: `researcher_recruiting/sources/pubmed.py`
+- Create: `researcher_recruiting/sources/europe_pmc.py`
+- Create: `researcher_recruiting/sources/unpaywall.py`
+- Create: `researcher_recruiting/sources/licensed.py`
+- Create: `tests/fixtures/pubmed_search.json`
+- Create: `tests/fixtures/pubmed_summary.json`
+- Create: `tests/fixtures/europe_pmc_search.json`
+- Create: `tests/fixtures/unpaywall_doi.json`
+- Test: `tests/test_biomedical_sources.py`
+- Test: `tests/test_licensed_sources.py`
+
+**Interfaces:**
+- Consumes: `AuthorSeed`, discovered DOIs, `NCBI_API_KEY`, `UNPAYWALL_EMAIL`, and optional licensed-source credentials.
+- Produces: `PubmedSource.enrich(seed)`, `EuropePmcSource.enrich(seed)`, `UnpaywallEnricher.enrich_dois(dois)`, and `licensed_source_descriptors(settings)`.
+
+- [ ] **Step 1: Write failing biomedical, OA, and licensed-state tests**
+
+```python
+@pytest.mark.asyncio
+async def test_pubmed_emits_pmid_doi_orcid_and_titles(load_fixture):
+    crawler = sequential_fixture_crawler({
+        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi":
+            load_fixture("pubmed_search.json"),
+        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi":
+            load_fixture("pubmed_summary.json"),
+    })
+    result = await PubmedSource(crawler, api_key=None).enrich(
+        AuthorSeed(name="Ada Lovelace")
+    )
+    assert any(item.field == "pmid" for item in result.evidence)
+
+
+@pytest.mark.asyncio
+async def test_europe_pmc_emits_life_science_author_records(load_fixture):
+    result = await EuropePmcSource(fixture_crawler(
+        "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+        load_fixture("europe_pmc_search.json"),
+    )).enrich(AuthorSeed(name="Ada Lovelace"))
+    assert any(item.field == "europe_pmc" for item in result.evidence)
+
+
+@pytest.mark.asyncio
+async def test_unpaywall_requires_contact_email():
+    result = await UnpaywallEnricher(StubCrawler({}), email=None).enrich_dois(
+        ("10.1000/example",)
+    )
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert "UNPAYWALL_EMAIL" in result.error
+
+
+def test_unlicensed_platforms_are_locator_only(settings):
+    descriptors = licensed_source_descriptors(settings)
+    assert descriptors["scopus"].mode == "locator_only"
+    assert descriptors["web_of_science"].mode == "locator_only"
+    assert all(item.official_api_only for item in descriptors.values())
+```
+
+- [ ] **Step 2: Run and verify RED**
+
+Run:
+
+```bash
+python -m pytest tests/test_biomedical_sources.py tests/test_licensed_sources.py -v
+```
+
+Expected: biomedical, OA, and licensed modules are missing.
+
+- [ ] **Step 3: Implement official APIs and licensed descriptors**
+
+Use:
+
+```text
+GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=<name>[Author]&retmode=json&retmax=25
+GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=<ids>&retmode=json
+GET https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=AUTH:"<name>"&resultType=core&format=json&pageSize=25
+GET https://api.unpaywall.org/v2/<doi>?email=<configured-email>
+```
+
+Create immutable licensed descriptors for Scopus, Web of Science, Dimensions, Lens, NASA ADS, IEEE Xplore, and Springer Nature. Each descriptor contains `name`, `credential_env`, `official_api_only=True`, `mode`, and a locator URL template. Set `mode="authorized_api"` only when the required credential is present and a source-specific adapter is registered; otherwise set `mode="locator_only"`. Never send a request from the descriptor itself.
+
+- [ ] **Step 4: Run and verify GREEN**
+
+Run:
+
+```bash
+python -m pytest tests/test_biomedical_sources.py tests/test_licensed_sources.py -v
+```
+
+Expected: PubMed, Europe PMC, Unpaywall, and licensed-descriptor tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add researcher_recruiting/sources tests/fixtures tests/test_biomedical_sources.py tests/test_licensed_sources.py
+git commit -m "feat: add biomedical and licensed source routing"
+```
+
+---
+
+### Task 9: ORCID and GitHub Source Clients
 
 **Files:**
 - Create: `researcher_recruiting/sources/orcid.py`
@@ -935,7 +1430,7 @@ git commit -m "feat: add orcid and github sources"
 
 ---
 
-### Task 6: Public Homepage Crawling and Locator Links
+### Task 10: Public Homepage Crawling and Locator Links
 
 **Files:**
 - Create: `researcher_recruiting/sources/public_web.py`
@@ -977,7 +1472,15 @@ def test_locator_links_encode_name_and_affiliation():
     links = build_locator_links(
         AuthorSeed(name="Ada Lovelace", affiliation="Analytical Engines")
     )
-    assert set(links) == {"google_scholar", "linkedin", "maimai"}
+    assert {
+        "google_scholar",
+        "researchgate",
+        "academia",
+        "linkedin",
+        "maimai",
+        "scopus",
+        "web_of_science",
+    } <= set(links)
     assert "Ada+Lovelace" in links["google_scholar"]
     assert "Analytical+Engines" in links["linkedin"]
 ```
@@ -1012,8 +1515,12 @@ def build_locator_links(seed: AuthorSeed) -> dict[str, str]:
     encoded = quote_plus(query)
     return {
         "google_scholar": f"https://scholar.google.com/scholar?q={encoded}",
+        "researchgate": f"https://www.google.com/search?q=site%3Aresearchgate.net+{encoded}",
+        "academia": f"https://www.google.com/search?q=site%3Aacademia.edu+{encoded}",
         "linkedin": f"https://www.google.com/search?q=site%3Alinkedin.com%2Fin+{encoded}",
         "maimai": f"https://www.baidu.com/s?wd=site%3Amaimai.cn+{encoded}",
+        "scopus": f"https://www.google.com/search?q=site%3Ascopus.com+{encoded}",
+        "web_of_science": f"https://www.google.com/search?q=site%3Awebofscience.com+{encoded}",
     }
 ```
 
@@ -1036,7 +1543,7 @@ git commit -m "feat: crawl public homepages and build locator links"
 
 ---
 
-### Task 7: Deterministic Identity Resolution
+### Task 11: Deterministic Identity Resolution
 
 **Files:**
 - Create: `researcher_recruiting/identity.py`
@@ -1084,6 +1591,20 @@ def test_unavailable_sources_do_not_become_not_found(author_seed):
     )
     assert match.state is IdentityState.AMBIGUOUS
     assert "unavailable" in " ".join(match.reasons).lower()
+
+
+def test_same_doi_copied_by_multiple_indexes_counts_once(
+    author_seed, evidence_factory
+):
+    evidence = (
+        evidence_factory(source="openalex", field="doi", value="10.1000/shared"),
+        evidence_factory(source="crossref", field="doi", value="10.1000/shared"),
+        evidence_factory(
+            source="semantic_scholar", field="doi", value="10.1000/shared"
+        ),
+    )
+    match = resolve_identity(author_seed, evidence, unavailable_sources=())
+    assert match.reasons.count("exact paper overlap: 10.1000/shared") == 1
 ```
 
 Add parameterized cases for Chinese/Western name order, transliteration, coauthor overlap, paper overlap, institution changes, and unrelated fields.
@@ -1124,6 +1645,7 @@ Rules:
 - cap confidence to `0..100`;
 - require at least one non-name supporting signal for `PROBABLE`;
 - require one strong signal or three independent supporting categories for `CONFIRMED`;
+- canonicalize DOI, ORCID, PMID, OpenAlex ID, and DBLP person keys before scoring, so copied aggregator metadata counts once;
 - force `AMBIGUOUS` for conflicting ORCIDs or tied plausible candidates;
 - return `NOT_FOUND` only when evidence is empty and no source was unavailable;
 - include a reason for every applied weight and conflict.
@@ -1149,14 +1671,14 @@ git commit -m "feat: add evidence-based identity resolution"
 
 ---
 
-### Task 8: Concurrent Pipeline and Partial-Failure Semantics
+### Task 12: Concurrent Pipeline and Partial-Failure Semantics
 
 **Files:**
 - Create: `researcher_recruiting/pipeline.py`
 - Test: `tests/test_pipeline.py`
 
 **Interfaces:**
-- Consumes: `resolve_paper`, `SourceClient`, `PublicWebSource`, `resolve_identity`, and `build_locator_links`.
+- Consumes: `resolve_paper`, `SourceRegistry`, `SourceClient`, DOI work enrichers, `PublicWebSource`, `resolve_identity`, and `build_locator_links`.
 - Produces: `ResearchPipeline.run(paper_input, refresh=False) -> RunResult`.
 
 - [ ] **Step 1: Write failing orchestration tests**
@@ -1180,6 +1702,25 @@ class FakePublicWebSource:
     async def enrich_urls(self, urls: tuple[str, ...]) -> SourceResult:
         self.requested_urls = urls
         return SourceResult("public_web", SourceStatus.NOT_FOUND)
+
+
+class RecordingRegistry:
+    def __init__(self, selected):
+        self.selected = selected
+        self.categories = ()
+
+    def select(self, categories, requested=()):
+        self.categories = tuple(categories)
+        return self.selected
+
+
+class RecordingWorkEnricher:
+    def __init__(self):
+        self.dois = ()
+
+    async def enrich_dois(self, dois):
+        self.dois = tuple(dois)
+        return SourceResult("work_enricher", SourceStatus.NOT_FOUND)
 ```
 
 Construct `fake_paper` from the shared `author_seed` fixture and create:
@@ -1197,7 +1738,10 @@ async def test_pipeline_keeps_all_authors_when_one_source_fails(
 ):
     pipeline = ResearchPipeline(
         paper_resolver=AsyncMock(return_value=fake_paper),
-        sources=(successful_source, unavailable_source),
+        source_registry=RecordingRegistry(
+            selected=(successful_source, unavailable_source)
+        ),
+        work_enrichers=(),
         public_web_source=FakePublicWebSource(),
     )
     result = await pipeline.run("1706.03762")
@@ -1215,11 +1759,55 @@ async def test_pipeline_crawls_only_homepages_from_credible_evidence(
     public_web = FakePublicWebSource()
     pipeline = ResearchPipeline(
         paper_resolver=AsyncMock(return_value=fake_paper),
-        sources=(homepage_source,),
+        source_registry=RecordingRegistry(selected=(homepage_source,)),
+        work_enrichers=(),
         public_web_source=public_web,
     )
     await pipeline.run("1706.03762")
     assert public_web.requested_urls == ("https://university.example/~ada/",)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_routes_sources_from_arxiv_categories(fake_paper):
+    registry = RecordingRegistry(selected=(StaticSource(
+        "dblp", SourceResult("dblp", SourceStatus.NOT_FOUND)
+    ),))
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=registry,
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+    await pipeline.run("1706.03762")
+    assert registry.categories == fake_paper.categories
+
+
+@pytest.mark.asyncio
+async def test_pipeline_runs_doi_enrichers_after_author_sources(fake_paper):
+    doi_source = StaticSource(
+        "crossref",
+        SourceResult(
+            "crossref",
+            SourceStatus.OK,
+            evidence=(Evidence(
+                source="crossref",
+                field="doi",
+                value="10.1000/example",
+                url="https://doi.org/10.1000/example",
+                collected_at="2026-07-18T00:00:00Z",
+                candidate_id="crossref:ada",
+            ),),
+        ),
+    )
+    enricher = RecordingWorkEnricher()
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=(doi_source,)),
+        work_enrichers=(enricher,),
+        public_web_source=FakePublicWebSource(),
+    )
+    await pipeline.run("1706.03762")
+    assert enricher.dois == ("10.1000/example",)
 ```
 
 Add a test that source exceptions become sanitized `SourceResult` values rather than aborting the run.
@@ -1248,7 +1836,8 @@ class ResearchPipeline:
     def __init__(
         self,
         paper_resolver: PaperResolver,
-        sources: tuple[SourceClient, ...],
+        source_registry: SourceRegistry,
+        work_enrichers: tuple[WorkEnricher, ...],
         public_web_source: PublicWebSource,
     ) -> None: ...
 
@@ -1256,7 +1845,7 @@ class ResearchPipeline:
         ...
 ```
 
-For each author, call source clients concurrently with `asyncio.gather(..., return_exceptions=True)`. Convert exceptions to `SOURCE_UNAVAILABLE`, deduplicate credible homepage URLs, perform bounded public-web enrichment, resolve identity, and retain every source result. Limit total author concurrency with a semaphore defaulting to four.
+Select sources once from `paper.categories` plus explicit CLI overrides. For each author, call selected source clients concurrently with `asyncio.gather(..., return_exceptions=True)`. Convert exceptions to `SOURCE_UNAVAILABLE`, deduplicate durable identifiers, pass discovered DOIs to OpenCitations and Unpaywall enrichers, deduplicate credible homepage URLs, perform bounded public-web enrichment, resolve identity, and retain every source result. Limit total author concurrency with a semaphore defaulting to four.
 
 - [ ] **Step 4: Run and verify GREEN**
 
@@ -1277,7 +1866,7 @@ git commit -m "feat: orchestrate partial researcher enrichment"
 
 ---
 
-### Task 9: Five-Artifact Export and CLI
+### Task 13: Five-Artifact Export and CLI
 
 **Files:**
 - Create: `researcher_recruiting/exporters.py`
@@ -1333,6 +1922,7 @@ async def test_cli_returns_two_for_unresolvable_paper(monkeypatch, capsys):
 ```
 
 Also test `--refresh`, `--output`, JSON serialization, Markdown source links, and secret redaction in `run-log.json`.
+Also test `--sources dblp,pubmed` passes explicit source names to the registry and an unknown source returns exit code `2`.
 
 - [ ] **Step 2: Run and verify RED**
 
@@ -1349,7 +1939,7 @@ Expected: imports fail for exporters/CLI.
 CLI contract:
 
 ```text
-researcher-recruiting PAPER [--output PATH] [--refresh]
+researcher-recruiting PAPER [--output PATH] [--refresh] [--sources NAME,NAME]
 ```
 
 Exit codes:
@@ -1391,7 +1981,7 @@ git commit -m "feat: export recruiting reports from cli"
 
 ---
 
-### Task 10: Codex Skill, Reference Files, and Skill TDD
+### Task 14: Codex Skill, Reference Files, and Skill TDD
 
 **Files:**
 - Create: `SKILL.md`
@@ -1411,13 +2001,15 @@ Use a clean subagent context with this exact request and do not expose the inten
 
 ```text
 Given arXiv paper 1706.03762, research every author for recruiting.
-Find academic profiles, GitHub, personal pages, Google Scholar, LinkedIn,
-and Maimai. Produce a source-backed candidate report and machine-readable data.
+Use mainstream cross-disciplinary and computer-science scholarly sources,
+plus public identity and code profiles. Include locator links for restricted
+platforms. Produce a source-backed candidate report and machine-readable data.
 ```
 
 Record the raw response in a temporary file outside the repository. Score whether it:
 
 - invokes a deterministic local workflow;
+- selects always-on and computer-science sources from the paper categories;
 - keeps restricted sources locator-only;
 - distinguishes source failure from no result;
 - produces five artifacts;
@@ -1457,13 +2049,14 @@ The body must require Codex to:
 1. accept an arXiv URL/id/title;
 2. run `python scripts/researcher_recruiting.py "<paper>" --output results`;
 3. pass `--refresh` only when the user requests fresh data;
-4. inspect `run-log.json` before describing missing data;
-5. present `report.md` and `candidates.csv`;
-6. label ambiguous matches and unavailable sources;
-7. keep Google Scholar, LinkedIn, and Maimai locator-only;
-8. never request credentials, cookies, CAPTCHA solving, or access-control bypass.
+4. let the source registry route field-specific indexes from arXiv categories, and pass `--sources` only for an explicit user override;
+5. inspect `run-log.json` before describing missing data;
+6. present `report.md` and `candidates.csv`;
+7. label ambiguous matches and unavailable sources;
+8. keep Google Scholar, ResearchGate, Academia.edu, LinkedIn, Maimai, and unlicensed commercial indexes locator-only;
+9. never request cookies, CAPTCHA solving, shared account credentials, or access-control bypass.
 
-`references/sources.md` must list API base URLs, credentials, rate-limit behavior, and source status semantics. `references/compliance.md` must state the public-only and locator-only rules with concrete allowed/forbidden examples. Update `README.md` with Python setup, CLI examples, environment variables, output files, and Codex installation by copying or symlinking the repository into the personal skills directory.
+`references/sources.md` must list every always-on, category-routed, DOI-enrichment, licensed, and locator-only source with API base URLs, credentials, rate-limit behavior, routing categories, and source status semantics. `references/compliance.md` must state the public-only and locator-only rules with concrete allowed/forbidden examples. Update `README.md` with Python setup, CLI examples, source matrix, environment variables, output files, and Codex installation by copying or symlinking the repository into the personal skills directory.
 
 - [ ] **Step 4: Validate static Skill structure**
 
@@ -1478,13 +2071,13 @@ Expected: validator reports a valid skill and all fixture tests pass.
 
 - [ ] **Step 5: Re-run the same clean-context Skill test**
 
-Run the Task 10 Step 1 prompt in a fresh subagent with:
+Run the Task 14 Step 1 prompt in a fresh subagent with:
 
 ```text
 Use $researcher-recruiting-skill at <repository-path> to complete the request.
 ```
 
-Verify all five rubric items now pass. If a rubric item fails, tighten the Skill instructions to address that observed failure and re-run the same test. Keep locator-only behavior unchanged.
+Verify all six rubric items now pass. If a rubric item fails, tighten the Skill instructions to address that observed failure and re-run the same test. Keep locator-only behavior unchanged.
 
 - [ ] **Step 6: Commit**
 
@@ -1495,7 +2088,7 @@ git commit -m "feat: package researcher workflow as codex skill"
 
 ---
 
-### Task 11: Full Verification, Opt-In Network Check, and Release Commit
+### Task 15: Full Verification, Opt-In Network Check, and Release Commit
 
 **Files:**
 - Create: `tests/test_network_e2e.py`
@@ -1558,7 +2151,7 @@ Run:
 ```bash
 rg -n "github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|Bearer [A-Za-z0-9._-]{20,}" . \
   -g '!docs/superpowers/**' -g '!tests/**'
-rg -n "(fetch|get|post)\\(.*(linkedin|maimai|scholar\\.google)" researcher_recruiting scripts
+rg -n "(fetch|get|post)\\(.*(linkedin|maimai|scholar\\.google|researchgate|academia\\.edu|scopus|webofscience)" researcher_recruiting scripts
 ```
 
 Expected: no committed secret values; no crawler calls targeting locator-only domains.
