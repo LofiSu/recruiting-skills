@@ -54,6 +54,14 @@ async def test_unpaywall_requires_contact_email():
 
 
 @pytest.mark.asyncio
+async def test_unpaywall_without_dois_does_not_require_email():
+    enriched = await UnpaywallEnricher(
+        StubCrawler({}), email=None
+    ).enrich_dois(())
+    assert enriched.status is SourceStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
 async def test_unpaywall_emits_lawful_open_access_location(load_fixture):
     crawler = fixture_crawler(
         "https://api.unpaywall.org/v2/10.1000/example",

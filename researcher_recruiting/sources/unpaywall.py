@@ -15,14 +15,14 @@ class UnpaywallEnricher:
         self.email = email
 
     async def enrich_dois(self, dois: tuple[str, ...]) -> SourceResult:
+        if not dois:
+            return SourceResult(self.name, SourceStatus.NOT_FOUND)
         if not self.email:
             return SourceResult(
                 self.name,
                 SourceStatus.SOURCE_UNAVAILABLE,
                 error="UNPAYWALL_EMAIL is required",
             )
-        if not dois:
-            return SourceResult(self.name, SourceStatus.NOT_FOUND)
         items = []
         unavailable = False
         for doi in dict.fromkeys(dois):

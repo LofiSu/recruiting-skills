@@ -42,6 +42,26 @@ async def test_ror_normalizes_affiliation_without_identifying_person(load_fixtur
 
 
 @pytest.mark.asyncio
+async def test_ror_source_enriches_seed_affiliation_without_person_candidate(
+    load_fixture,
+):
+    source = RorSource(
+        fixture_crawler(
+            "https://api.ror.org/v2/organizations",
+            load_fixture("ror_organizations.json"),
+        )
+    )
+    enriched = await source.enrich(
+        AuthorSeed(
+            name="Ada Lovelace",
+            affiliation="University of Example",
+        )
+    )
+    assert enriched.status is SourceStatus.OK
+    assert enriched.evidence[0].candidate_id is None
+
+
+@pytest.mark.asyncio
 async def test_wikidata_is_supporting_evidence_only(load_fixture):
     source = WikidataSource(
         fixture_crawler(

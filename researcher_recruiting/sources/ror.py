@@ -1,6 +1,11 @@
 from typing import Any
 
-from researcher_recruiting.models import Evidence, SourceStatus
+from researcher_recruiting.models import (
+    AuthorSeed,
+    Evidence,
+    SourceResult,
+    SourceStatus,
+)
 from researcher_recruiting.sources.base import decode_json, evidence
 
 ROR_ORGANIZATIONS = "https://api.ror.org/v2/organizations"
@@ -11,6 +16,14 @@ class RorSource:
 
     def __init__(self, crawler: Any) -> None:
         self.crawler = crawler
+
+    async def enrich(self, seed: AuthorSeed) -> SourceResult:
+        if not seed.affiliation:
+            return SourceResult(self.name, SourceStatus.NOT_FOUND)
+        item = await self.normalize_affiliation(seed.affiliation)
+        if item is None:
+            return SourceResult(self.name, SourceStatus.NOT_FOUND)
+        return SourceResult(self.name, SourceStatus.OK, evidence=(item,))
 
     async def normalize_affiliation(self, name: str) -> Evidence | None:
         response = await self.crawler.fetch(
