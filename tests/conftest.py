@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 
 from researcher_recruiting.models import (
     AuthorSeed,
@@ -8,6 +9,14 @@ from researcher_recruiting.models import (
     PaperRecord,
     RunResult,
 )
+
+
+@pytest.fixture
+def load_fixture():
+    def load(name: str) -> str:
+        return (Path(__file__).parent / "fixtures" / name).read_text(encoding="utf-8")
+
+    return load
 
 
 @pytest.fixture
