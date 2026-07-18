@@ -1,0 +1,15 @@
+{
+  "total": 1,
+  "data": [
+    {
+      "authorId": "12345",
+      "name": "Ada Lovelace",
+      "url": "https://www.semanticscholar.org/author/12345",
+      "affiliations": ["Analytical Engines Institute"],
+      "homepage": "https://ada.example.org",
+      "papers": [
+        {"title": "Notes on the Analytical Engine", "year": 1843}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "profiles": [
+    {
+      "id": "~Ada_Lovelace1",
+      "content": {
+        "names": {
+          "value": [
+            {"fullname": "Ada Lovelace", "preferred": true}
+          ]
+        },
+        "history": {
+          "value": [
+            {"position": "Researcher", "institution": {"name": "Analytical Engines"}}
+          ]
+        },
+        "homepage": {"value": "https://ada.example.org"},
+        "semanticScholar": {"value": "12345"},
+        "gscholar": {"value": "ada-scholar-id"},
+        "linkedin": {"value": "ada-lovelace"}
+      }
+    }
+  ]
+}
