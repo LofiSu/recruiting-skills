@@ -103,6 +103,14 @@ class HttpCrawler:
         value = response.headers.get("Content-Type")
         return value.split(";", 1)[0].strip().lower() if value else None
 
+    def _content_type_allowed(self, content_type: str | None) -> bool:
+        return (
+            content_type is None
+            or content_type in self.policy.allowed_content_types
+            or content_type.endswith("+json")
+            or content_type.endswith("+xml")
+        )
+
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
         retry_after = response.headers.get("Retry-After")
         if retry_after:
@@ -133,11 +141,7 @@ class HttpCrawler:
                             "GET", url, headers=headers
                         ) as streamed:
                             content_type = self._content_type(streamed)
-                            if (
-                                content_type
-                                and content_type
-                                not in self.policy.allowed_content_types
-                            ):
+                            if not self._content_type_allowed(content_type):
                                 raise _UnsupportedContentType(content_type)
                             content_length = streamed.headers.get("Content-Length")
                             if (
@@ -241,7 +245,7 @@ class HttpCrawler:
             )
 
         content_type = self._content_type(response)
-        if content_type and content_type not in self.policy.allowed_content_types:
+        if not self._content_type_allowed(content_type):
             return FetchResult(
                 SourceStatus.SOURCE_UNAVAILABLE,
                 target,

@@ -58,6 +58,24 @@ async def test_crawler_rejects_unsupported_content_type(
 
 
 @pytest.mark.asyncio
+async def test_crawler_accepts_registered_vendor_json(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(
+            200,
+            content=b'{"name":"Ada"}',
+            headers={"Content-Type": "application/vnd.orcid+json"},
+        )
+    )
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/person")
+    assert result.status is SourceStatus.OK
+
+
+@pytest.mark.asyncio
 async def test_crawler_rejects_oversized_body(tmp_path, respx_mock, settings):
     allow_robots(respx_mock)
     respx_mock.get("https://example.test/person").mock(

@@ -1,0 +1,11 @@
+{
+  "total_count": 1,
+  "incomplete_results": false,
+  "items": [
+    {
+      "login": "ada",
+      "id": 123,
+      "html_url": "https://github.com/ada"
+    }
+  ]
+}
