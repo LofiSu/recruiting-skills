@@ -9,9 +9,18 @@ from researcher_recruiting.models import SourceResult, SourceStatus
 from researcher_recruiting.sources.base import evidence
 
 _RESTRICTED_HOSTS = (
+    "academia.edu",
+    "dimensions.ai",
+    "ieeexplore.ieee.org",
+    "lens.org",
+    "link.springer.com",
     "linkedin.com",
     "maimai.cn",
+    "researchgate.net",
     "scholar.google.",
+    "scopus.com",
+    "ui.adsabs.harvard.edu",
+    "webofscience.com",
 )
 _EMAIL_PATTERN = re.compile(
     r"[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@"
@@ -25,6 +34,14 @@ def _host_matches(host: str, blocked: str) -> bool:
     if blocked.endswith("."):
         return host.startswith(blocked) or f".{blocked}" in host
     return host == blocked or host.endswith(f".{blocked}")
+
+
+def _is_restricted_host(host: str) -> bool:
+    normalized = host.casefold().rstrip(".")
+    return any(
+        _host_matches(normalized, restricted)
+        for restricted in _RESTRICTED_HOSTS
+    )
 
 
 def _is_safe_public_url(url: str) -> bool:
@@ -127,7 +144,7 @@ class PublicWebSource:
                 continue
             linked = urlsplit(linked_url)
             host = (linked.hostname or "").casefold()
-            if any(_host_matches(host, item) for item in _RESTRICTED_HOSTS):
+            if _is_restricted_host(host):
                 continue
             path = linked.path.casefold()
             anchor_text = " ".join(
@@ -173,7 +190,14 @@ class PublicWebSource:
 
     async def enrich_urls(self, urls: tuple[str, ...]) -> SourceResult:
         safe_urls = tuple(
-            dict.fromkeys(url for url in urls if _is_safe_public_url(url))
+            dict.fromkeys(
+                url
+                for url in urls
+                if _is_safe_public_url(url)
+                and not _is_restricted_host(
+                    urlsplit(url).hostname or ""
+                )
+            )
         )
         if not safe_urls:
             return SourceResult(self.name, SourceStatus.NOT_FOUND)

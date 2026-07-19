@@ -103,3 +103,29 @@ async def test_public_homepage_rejects_local_network_urls_without_fetch():
     )
     assert enriched.status is SourceStatus.NOT_FOUND
     assert crawler.requests == []
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_rejects_restricted_sites_without_fetch():
+    urls = (
+        "https://scholar.google.com/citations?user=ada",
+        "https://www.researchgate.net/profile/Ada-Lovelace",
+        "https://academia.edu/AdaLovelace",
+        "https://www.linkedin.com/in/ada-lovelace",
+        "https://maimai.cn/contact/detail/123",
+        "https://www.scopus.com/authid/detail.uri?authorId=123",
+        "https://www.webofscience.com/wos/author/record/123",
+        "https://app.dimensions.ai/discover/publication",
+        "https://www.lens.org/lens/profile/123",
+        "https://ui.adsabs.harvard.edu/search/q=author%3Aada",
+        "https://ieeexplore.ieee.org/author/123",
+        "https://link.springer.com/search?query=ada",
+    )
+    crawler = StubCrawler(
+        {url: [html_result(url, "<p>Restricted</p>")] for url in urls}
+    )
+
+    enriched = await PublicWebSource(crawler).enrich_urls(urls)
+
+    assert enriched.status is SourceStatus.NOT_FOUND
+    assert crawler.requests == []
