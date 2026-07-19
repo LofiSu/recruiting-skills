@@ -1,6 +1,7 @@
 import ipaddress
+import re
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -11,6 +12,12 @@ _RESTRICTED_HOSTS = (
     "linkedin.com",
     "maimai.cn",
     "scholar.google.",
+)
+_EMAIL_PATTERN = re.compile(
+    r"[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?"
+    r"(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+",
+    re.IGNORECASE,
 )
 
 
@@ -50,6 +57,11 @@ def _same_origin(left: str, right: str) -> bool:
         right_parts.scheme.casefold(),
         right_parts.netloc.casefold(),
     )
+
+
+def _public_email(href: str) -> str | None:
+    value = unquote(href.split(":", 1)[1].split("?", 1)[0]).strip()
+    return value.casefold() if _EMAIL_PATTERN.fullmatch(value) else None
 
 
 class PublicWebSource:
@@ -95,7 +107,7 @@ class PublicWebSource:
         for anchor in soup.find_all("a", href=True):
             href = anchor.get("href", "").strip()
             if href.casefold().startswith("mailto:"):
-                email = href.split(":", 1)[1].split("?", 1)[0]
+                email = _public_email(href)
                 if email:
                     items.append(
                         evidence(
@@ -104,6 +116,9 @@ class PublicWebSource:
                             value=email,
                             url=page_url,
                             candidate_id=candidate_id,
+                            metadata={
+                                "visibility": "public_professional"
+                            },
                         )
                     )
                 continue
@@ -115,6 +130,9 @@ class PublicWebSource:
             if any(_host_matches(host, item) for item in _RESTRICTED_HOSTS):
                 continue
             path = linked.path.casefold()
+            anchor_text = " ".join(
+                anchor.get_text(" ", strip=True).split()
+            ).casefold()
             field = None
             value = linked_url
             if _host_matches(host, "github.com"):
@@ -127,6 +145,10 @@ class PublicWebSource:
                 field = "openreview"
             elif _host_matches(host, "semanticscholar.org"):
                 field = "semantic_scholar"
+            elif _same_origin(page_url, linked_url) and (
+                "contact" in path or "contact" in anchor_text
+            ):
+                field = "contact_form"
             elif _same_origin(page_url, linked_url) and (
                 "lab" in path or "group" in path
             ):

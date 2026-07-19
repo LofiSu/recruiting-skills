@@ -101,6 +101,13 @@ class GitHubSource:
                             value=value,
                             url=profile_url,
                             candidate_id=candidate_id,
+                            metadata=(
+                                {
+                                    "visibility": "public_professional"
+                                }
+                                if field == "email"
+                                else None
+                            ),
                         )
                     )
         if not items:

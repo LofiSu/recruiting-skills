@@ -69,6 +69,10 @@ async def test_orcid_public_search_and_record_are_normalized(load_fixture):
     ).enrich(AuthorSeed(name="Ada Lovelace"))
     fields = {item.field for item in enriched.evidence}
     assert {"orcid", "homepage", "email", "affiliation", "doi"} <= fields
+    email = next(
+        item for item in enriched.evidence if item.field == "email"
+    )
+    assert email.metadata["visibility"] == "public_professional"
     assert "public-token" not in repr(enriched)
     assert all(
         request.headers["Authorization"] == "Bearer public-token"
@@ -100,6 +104,10 @@ async def test_github_search_uses_name_and_fetches_public_profile(load_fixture):
     assert crawler.requests[0].params["q"] == '"Ada Lovelace" in:fullname'
     fields = {item.field for item in enriched.evidence}
     assert {"github", "homepage", "affiliation", "email"} <= fields
+    email = next(
+        item for item in enriched.evidence if item.field == "email"
+    )
+    assert email.metadata["visibility"] == "public_professional"
     assert "Authorization" not in crawler.requests[0].headers
 
 

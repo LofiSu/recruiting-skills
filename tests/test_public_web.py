@@ -36,10 +36,39 @@ async def test_public_homepage_extracts_identity_links_only(load_fixture):
         "openreview",
         "semantic_scholar",
         "email",
+        "contact_form",
     } <= fields
     assert "linkedin" not in fields
     assert "maimai" not in fields
+    assert not any(
+        item.value == "https://external.example/contact"
+        for item in enriched.evidence
+    )
     assert crawler.requests == [crawler.requests[0]]
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_normalizes_email_and_finds_contact_form():
+    url = "https://university.example/~ada/"
+    html = (
+        '<a href="mailto:%20Ada@Example.org?subject=Research">'
+        "Email</a>"
+        '<a href="/contact/">Contact Ada</a>'
+        '<a href="https://external.example/contact">External contact</a>'
+    )
+    crawler = StubCrawler({url: [html_result(url, html)]})
+    result = await PublicWebSource(crawler).enrich_urls((url,))
+    email = next(item for item in result.evidence if item.field == "email")
+    form = next(
+        item for item in result.evidence if item.field == "contact_form"
+    )
+    assert email.value == "ada@example.org"
+    assert email.metadata["visibility"] == "public_professional"
+    assert form.value == "https://university.example/contact/"
+    assert not any(
+        item.value == "https://external.example/contact"
+        for item in result.evidence
+    )
 
 
 @pytest.mark.asyncio

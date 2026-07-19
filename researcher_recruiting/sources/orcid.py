@@ -191,7 +191,10 @@ class OrcidSource:
                             value=email["email"],
                             url=profile_url,
                             candidate_id=candidate_id,
-                            metadata={"verified": email.get("verified")},
+                            metadata={
+                                "verified": email.get("verified"),
+                                "visibility": "public_professional",
+                            },
                         )
                     )
             activities = record.get("activities-summary") or {}
