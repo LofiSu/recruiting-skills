@@ -17,24 +17,6 @@ class IdentityState(str, Enum):
     NOT_FOUND = "not_found"
 
 
-class ContactKind(str, Enum):
-    PROFESSIONAL_EMAIL = "professional_email"
-    CONTACT_FORM = "contact_form"
-    HOMEPAGE = "homepage"
-    GITHUB = "github"
-    OPENREVIEW = "openreview"
-    GOOGLE_SCHOLAR_LOCATOR = "google_scholar_locator"
-    LINKEDIN_LOCATOR = "linkedin_locator"
-    MAIMAI_LOCATOR = "maimai_locator"
-
-
-class ContactStatus(str, Enum):
-    FOUND = "found"
-    NOT_FOUND = "not_found"
-    AMBIGUOUS = "ambiguous"
-    SOURCES_UNAVAILABLE = "sources_unavailable"
-
-
 @dataclass(frozen=True)
 class AuthorSeed:
     name: str
@@ -69,25 +51,11 @@ class Evidence:
 
 
 @dataclass(frozen=True)
-class ContactPoint:
-    kind: ContactKind
-    value: str
-    source: str
-    source_url: str
-    collected_at: str
-    confidence: int
-    direct: bool
-    evidence: tuple[Evidence, ...] = ()
-    metadata: Mapping[str, object] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class SourceResult:
     source: str
     status: SourceStatus
     evidence: tuple[Evidence, ...] = ()
     error: str | None = None
-    author_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -97,8 +65,6 @@ class IdentityMatch:
     confidence: int
     reasons: tuple[str, ...]
     evidence: tuple[Evidence, ...]
-    contact_status: ContactStatus = ContactStatus.NOT_FOUND
-    contact_points: tuple[ContactPoint, ...] = ()
 
 
 @dataclass(frozen=True)
