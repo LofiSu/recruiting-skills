@@ -323,6 +323,20 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
+def _source_result_matches_author(
+    item: Any,
+    *,
+    author_id: str,
+    author_order: int,
+    author_name: str,
+) -> bool:
+    if item.author_id is not None:
+        return item.author_id == author_id
+    if item.author_order is not None:
+        return item.author_order == author_order
+    return item.author_name == author_name
+
+
 def write_artifacts(run: RunResult, output_root: Path) -> Path:
     output_root = Path(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
@@ -376,11 +390,18 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
                         "status": item.status,
                         "evidence_count": len(item.evidence),
                         "error": item.error,
+                        "author_name": item.author_name,
+                        "author_order": item.author_order,
+                        "author_id": item.author_id,
                     }
                     for item in run.source_results
                 ],
                 "authors": [
                     {
+                        "author_order": author_order,
+                        "author_id": (
+                            f"{run.paper.arxiv_id}:author:{author_order}"
+                        ),
                         "author_name": match.author.name,
                         "contact_status": match.contact_status,
                         "source_attempts": [
@@ -391,10 +412,21 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
                                 "error": item.error,
                             }
                             for item in run.source_results
-                            if item.author_name == match.author.name
+                            if _source_result_matches_author(
+                                item,
+                                author_id=(
+                                    f"{run.paper.arxiv_id}:author:"
+                                    f"{author_order}"
+                                ),
+                                author_order=author_order,
+                                author_name=match.author.name,
+                            )
                         ],
                     }
-                    for match in run.matches
+                    for author_order, match in enumerate(
+                        run.matches,
+                        start=1,
+                    )
                 ],
                 "artifact_names": ARTIFACT_NAMES,
             },

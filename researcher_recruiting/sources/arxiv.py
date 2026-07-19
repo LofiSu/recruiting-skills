@@ -39,11 +39,17 @@ def _parse_entry(entry: ElementTree.Element) -> PaperRecord:
     for author in entry.findall(f"{ATOM}author"):
         name = _text(author, "name")
         affiliation = author.find(f"{ARXIV}affiliation")
+        email = author.find(f"{ATOM}email")
+        if email is None:
+            email = author.find(f"{ARXIV}email")
         author_data.append(
             (
                 name,
                 " ".join((affiliation.text or "").split())
                 if affiliation is not None
+                else None,
+                " ".join((email.text or "").split())
+                if email is not None
                 else None,
             )
         )
@@ -52,10 +58,13 @@ def _parse_entry(entry: ElementTree.Element) -> PaperRecord:
         AuthorSeed(
             name=name,
             affiliation=affiliation,
-            coauthors=tuple(other for other, _ in author_data if other != name),
+            email=email,
+            coauthors=tuple(
+                other for other, _, _ in author_data if other != name
+            ),
             paper_title=title,
         )
-        for name, affiliation in author_data
+        for name, affiliation, email in author_data
     )
     categories = tuple(
         category.attrib["term"]

@@ -88,6 +88,8 @@ class SourceResult:
     evidence: tuple[Evidence, ...] = ()
     error: str | None = None
     author_name: str | None = None
+    author_order: int | None = None
+    author_id: str | None = None
 
 
 @dataclass(frozen=True)

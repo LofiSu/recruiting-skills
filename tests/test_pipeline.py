@@ -39,6 +39,14 @@ class FakePublicWebSource:
         return SourceResult("public_web", SourceStatus.NOT_FOUND)
 
 
+class StaticPublicWebSource:
+    def __init__(self, result: SourceResult) -> None:
+        self.result = result
+
+    async def enrich_urls(self, urls: tuple[str, ...]) -> SourceResult:
+        return self.result
+
+
 class RecordingRegistry:
     def __init__(self, selected):
         self.selected = selected
@@ -273,6 +281,162 @@ async def test_pipeline_crawls_only_homepages_from_credible_evidence(
     assert public_web.requested_urls == (
         "https://university.example/~ada/",
     )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_reassociates_verified_homepage_email_to_candidate(
+    fake_paper, evidence_factory
+):
+    homepage_url = "https://university.example/~ada/"
+    orcid = StaticSource(
+        "orcid",
+        SourceResult(
+            "orcid",
+            SourceStatus.OK,
+            evidence=(
+                evidence_factory(
+                    field="orcid",
+                    value="0000-0001-2345-6789",
+                    source="orcid",
+                    candidate_id="orcid:0000-0001-2345-6789",
+                ),
+                evidence_factory(
+                    field="homepage",
+                    value=homepage_url,
+                    source="orcid",
+                    candidate_id="orcid:0000-0001-2345-6789",
+                ),
+            ),
+        ),
+    )
+    public_web = StaticPublicWebSource(
+        SourceResult(
+            "public_web",
+            SourceStatus.OK,
+            evidence=(
+                evidence_factory(
+                    field="email",
+                    value="ada@university.example",
+                    source="public_web",
+                    url=homepage_url,
+                    candidate_id=f"public_web:{homepage_url}",
+                ),
+            ),
+        )
+    )
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=(orcid,)),
+        work_enrichers=(),
+        public_web_source=public_web,
+    )
+
+    result = await pipeline.run("1706.03762")
+
+    ada = result.matches[0]
+    email = next(
+        point
+        for point in ada.contact_points
+        if point.kind is ContactKind.PROFESSIONAL_EMAIL
+    )
+    assert email.value == "ada@university.example"
+    assert email.direct is True
+    assert email.evidence[0].candidate_id == "orcid:0000-0001-2345-6789"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_starts_author_with_explicit_paper_email_evidence(
+    fake_paper,
+):
+    author = AuthorSeed(
+        name="Ada Lovelace",
+        email="Ada@University.Example",
+        paper_title=fake_paper.title,
+    )
+    paper = PaperRecord(
+        arxiv_id=fake_paper.arxiv_id,
+        title=fake_paper.title,
+        abstract=fake_paper.abstract,
+        submitted_at=fake_paper.submitted_at,
+        categories=fake_paper.categories,
+        authors=(author,),
+        source_url=fake_paper.source_url,
+    )
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=paper),
+        source_registry=RecordingRegistry(selected=()),
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+
+    result = await pipeline.run("1706.03762")
+
+    paper_result = result.source_results[0]
+    assert paper_result.source == "paper"
+    assert paper_result.status is SourceStatus.OK
+    assert paper_result.author_order == 1
+    assert paper_result.author_id == "1706.03762:author:1"
+    assert len(paper_result.evidence) == 1
+    email = paper_result.evidence[0]
+    assert email.field == "email"
+    assert email.value == "Ada@University.Example"
+    assert email.url == paper.source_url
+    assert email.candidate_id == paper_result.author_id
+    assert email.metadata["visibility"] == "public_professional"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_records_paper_not_found_without_guessing_email(
+    fake_paper,
+):
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=()),
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+
+    result = await pipeline.run("1706.03762")
+
+    paper_results = [
+        item for item in result.source_results if item.source == "paper"
+    ]
+    assert len(paper_results) == len(fake_paper.authors)
+    assert all(
+        item.status is SourceStatus.NOT_FOUND and not item.evidence
+        for item in paper_results
+    )
+    assert not any(
+        evidence.field == "email"
+        for item in result.source_results
+        for evidence in item.evidence
+    )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_assigns_stable_scope_to_every_source_result(
+    fake_paper,
+):
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=(RaisingSource(),)),
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+
+    result = await pipeline.run("1706.03762")
+
+    for order, author in enumerate(fake_paper.authors, start=1):
+        author_results = [
+            item
+            for item in result.source_results
+            if item.author_order == order
+        ]
+        assert author_results
+        assert {item.author_name for item in author_results} == {author.name}
+        assert {item.author_id for item in author_results} == {
+            f"{fake_paper.arxiv_id}:author:{order}"
+        }
 
 
 @pytest.mark.asyncio

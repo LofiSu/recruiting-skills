@@ -26,6 +26,27 @@ def test_parse_atom_feed_preserves_author_order(load_fixture):
     assert paper.authors[0].coauthors[0] == "Noam Shazeer"
 
 
+def test_parse_atom_feed_preserves_only_explicit_author_email():
+    paper = parse_atom_feed(
+        """\
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <entry>
+            <id>http://arxiv.org/abs/1706.03762v7</id>
+            <title>Paper</title>
+            <author>
+              <name>Ada Lovelace</name>
+              <email>Ada@University.Example</email>
+            </author>
+            <author><name>Charles Babbage</name></author>
+          </entry>
+        </feed>
+        """
+    )[0]
+
+    assert paper.authors[0].email == "Ada@University.Example"
+    assert paper.authors[1].email is None
+
+
 @pytest.mark.asyncio
 async def test_resolve_title_uses_encoded_search_query(respx_mock):
     fixture_xml = Path("tests/fixtures/arxiv_single.xml").read_text(encoding="utf-8")

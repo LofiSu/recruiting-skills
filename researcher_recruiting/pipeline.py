@@ -125,18 +125,89 @@ class ResearchPipeline:
     def _scope_result(
         result: SourceResult,
         seed: AuthorSeed,
+        author_order: int,
+        author_id: str,
     ) -> SourceResult:
-        return replace(result, author_name=seed.name)
+        return replace(
+            result,
+            author_name=seed.name,
+            author_order=author_order,
+            author_id=author_id,
+        )
+
+    @staticmethod
+    def _paper_result(
+        seed: AuthorSeed,
+        paper: PaperRecord,
+        author_order: int,
+        author_id: str,
+    ) -> SourceResult:
+        evidence_items = ()
+        status = SourceStatus.NOT_FOUND
+        if seed.email and seed.email.strip():
+            evidence_items = (
+                Evidence(
+                    source="paper",
+                    field="email",
+                    value=seed.email,
+                    url=paper.source_url,
+                    collected_at=collected_at(),
+                    candidate_id=author_id,
+                    metadata={"visibility": "public_professional"},
+                ),
+            )
+            status = SourceStatus.OK
+        return SourceResult(
+            source="paper",
+            status=status,
+            evidence=evidence_items,
+            author_name=seed.name,
+            author_order=author_order,
+            author_id=author_id,
+        )
+
+    @staticmethod
+    def _reassociate_public_web_evidence(
+        result: SourceResult,
+        homepage_owners: dict[str, tuple[str, ...]],
+    ) -> SourceResult:
+        items = []
+        for item in result.evidence:
+            owners = ()
+            if item.candidate_id:
+                owners = homepage_owners.get(item.candidate_id, ())
+            if owners:
+                items.extend(
+                    replace(item, candidate_id=owner)
+                    for owner in owners
+                )
+            else:
+                items.append(item)
+        return replace(result, evidence=tuple(items))
 
     async def _run_author(
         self,
         seed: AuthorSeed,
+        paper: PaperRecord,
+        author_order: int,
         selected_sources: tuple[Any, ...],
         semaphore: asyncio.Semaphore,
     ) -> tuple[Any, tuple[SourceResult, ...]]:
         async with semaphore:
+            author_id = f"{paper.arxiv_id}:author:{author_order}"
+            paper_result = self._paper_result(
+                seed,
+                paper,
+                author_order,
+                author_id,
+            )
             author_results = tuple(
-                self._scope_result(result, seed)
+                self._scope_result(
+                    result,
+                    seed,
+                    author_order,
+                    author_id,
+                )
                 for result in await asyncio.gather(
                     *(
                         self._enrich_source(source, seed)
@@ -144,10 +215,10 @@ class ResearchPipeline:
                     )
                 )
             )
-            source_results = list(author_results)
+            source_results = [paper_result, *author_results]
             evidence_items = [
                 item
-                for result in author_results
+                for result in source_results
                 for item in result.evidence
             ]
 
@@ -160,7 +231,12 @@ class ResearchPipeline:
             )[:25]
             if self.work_enrichers:
                 work_results = tuple(
-                    self._scope_result(result, seed)
+                    self._scope_result(
+                        result,
+                        seed,
+                        author_order,
+                        author_id,
+                    )
                     for result in await asyncio.gather(
                         *(
                             self._enrich_work(enricher, dois)
@@ -183,19 +259,44 @@ class ResearchPipeline:
                     and item.source in _CREDIBLE_HOMEPAGE_SOURCES
                 )
             )
+            homepage_owners: dict[str, tuple[str, ...]] = {}
+            for homepage_url in homepage_urls:
+                owner_ids = tuple(
+                    dict.fromkeys(
+                        item.candidate_id
+                        for item in evidence_items
+                        if item.field == "homepage"
+                        and item.value == homepage_url
+                        and item.source in _CREDIBLE_HOMEPAGE_SOURCES
+                        and item.candidate_id is not None
+                    )
+                )
+                if owner_ids:
+                    homepage_owners[f"public_web:{homepage_url}"] = owner_ids
             try:
                 public_web_result = (
                     await self.public_web_source.enrich_urls(homepage_urls)
                 )
             except Exception as error:
                 public_web_result = _source_failure("public_web", error)
-            public_web_result = self._scope_result(public_web_result, seed)
+            public_web_result = self._reassociate_public_web_evidence(
+                public_web_result,
+                homepage_owners,
+            )
+            public_web_result = self._scope_result(
+                public_web_result,
+                seed,
+                author_order,
+                author_id,
+            )
             source_results.append(public_web_result)
             evidence_items.extend(public_web_result.evidence)
 
             locator_result = self._scope_result(
                 self._locator_result(seed),
                 seed,
+                author_order,
+                author_id,
             )
             source_results.append(locator_result)
             evidence_items.extend(locator_result.evidence)
@@ -253,8 +354,17 @@ class ResearchPipeline:
             semaphore = asyncio.Semaphore(self.max_author_concurrency)
             author_outputs = await asyncio.gather(
                 *(
-                    self._run_author(author, selected_sources, semaphore)
-                    for author in paper.authors
+                    self._run_author(
+                        author,
+                        paper,
+                        author_order,
+                        selected_sources,
+                        semaphore,
+                    )
+                    for author_order, author in enumerate(
+                        paper.authors,
+                        start=1,
+                    )
                 )
             )
         finally:
