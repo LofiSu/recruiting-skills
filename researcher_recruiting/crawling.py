@@ -8,7 +8,11 @@ from urllib.robotparser import RobotFileParser
 
 import httpx
 
-from researcher_recruiting.cache import SqliteCache, cache_key
+from researcher_recruiting.cache import (
+    SENSITIVE_HEADER_KEYS,
+    SqliteCache,
+    cache_key,
+)
 from researcher_recruiting.config import Settings
 from researcher_recruiting.models import SourceStatus
 
@@ -59,15 +63,20 @@ URLSafetyPolicy = Callable[
     Awaitable[URLSafetyDecision | None],
 ]
 
+@dataclass
+class _RedirectBudget:
+    remaining: int
+
+    def consume(self) -> bool:
+        if self.remaining <= 0:
+            return False
+        self.remaining -= 1
+        return True
+
 
 class HttpCrawler:
     REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
     RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
-    SENSITIVE_REDIRECT_HEADERS = {
-        "authorization",
-        "cookie",
-        "proxy-authorization",
-    }
 
     def __init__(
         self,
@@ -130,6 +139,8 @@ class HttpCrawler:
         self,
         url: str,
         decision: URLSafetyDecision,
+        url_safety: URLSafetyPolicy | None,
+        redirects: _RedirectBudget,
     ) -> bool:
         parts = urlsplit(url)
         origin = f"{parts.scheme}://{parts.netloc}"
@@ -137,24 +148,55 @@ class HttpCrawler:
             robots_url = f"{origin}/robots.txt"
             parser = RobotFileParser()
             parser.set_url(robots_url)
-            try:
-                request_url, headers, extensions = self._request_target(
-                    robots_url, {}, decision.connect_ip
-                )
-                async with self._client(
-                    direct=decision.connect_ip is not None
-                ) as client:
-                    response = await client.get(
-                        request_url,
-                        headers=headers,
-                        extensions=extensions,
+            current = robots_url
+            current_decision = decision
+            request_headers: dict[str, str] = {}
+            while True:
+                try:
+                    request_url, headers, extensions = self._request_target(
+                        current,
+                        request_headers,
+                        current_decision.connect_ip,
                     )
+                    async with self._client(
+                        direct=current_decision.connect_ip is not None
+                    ) as client:
+                        response = await client.get(
+                            request_url,
+                            headers=headers,
+                            extensions=extensions,
+                        )
+                except httpx.HTTPError:
+                    parser.parse([])
+                    break
+
+                if response.status_code in self.REDIRECT_STATUS_CODES:
+                    location = response.headers.get("Location")
+                    if not location or not redirects.consume():
+                        return False
+                    try:
+                        destination = str(
+                            httpx.URL(urljoin(current, location))
+                        )
+                    except (httpx.InvalidURL, ValueError):
+                        return False
+                    destination_decision = await self._url_decision(
+                        destination, url_safety
+                    )
+                    if destination_decision is None:
+                        return False
+                    request_headers = self._redirect_headers(
+                        request_headers, current, destination
+                    )
+                    current = destination
+                    current_decision = destination_decision
+                    continue
+
                 if response.status_code < 400:
                     parser.parse(response.text.splitlines())
                 else:
                     parser.parse([])
-            except httpx.HTTPError:
-                parser.parse([])
+                break
             self._robots[origin] = parser
         return self._robots[origin].can_fetch(self.settings.user_agent, url)
 
@@ -300,7 +342,7 @@ class HttpCrawler:
         return {
             key: value
             for key, value in headers.items()
-            if key.casefold() not in self.SENSITIVE_REDIRECT_HEADERS
+            if key.casefold() not in SENSITIVE_HEADER_KEYS
         }
 
     async def fetch(
@@ -354,9 +396,11 @@ class HttpCrawler:
                 )
 
         current = target
-        redirects = 0
+        redirects = _RedirectBudget(self.policy.max_redirects)
         while True:
-            if not await self._robots_allows(current, decision):
+            if not await self._robots_allows(
+                current, decision, url_safety, redirects
+            ):
                 return FetchResult(
                     status=SourceStatus.BLOCKED_BY_ROBOTS,
                     url=current,
@@ -407,7 +451,7 @@ class HttpCrawler:
                 response.status_code in self.REDIRECT_STATUS_CODES
                 and location
             ):
-                if redirects >= self.policy.max_redirects:
+                if not redirects.consume():
                     return FetchResult(
                         SourceStatus.SOURCE_UNAVAILABLE,
                         current,
@@ -449,7 +493,6 @@ class HttpCrawler:
                     )
                 current = destination
                 decision = destination_decision
-                redirects += 1
                 continue
             break
 

@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from researcher_recruiting.cache import SqliteCache
-from researcher_recruiting.crawling import HttpCrawler
+from researcher_recruiting.crawling import FetchPolicy, HttpCrawler
 from researcher_recruiting.models import SourceStatus
 
 
@@ -279,6 +279,7 @@ async def test_crawler_strips_credentials_on_cross_origin_redirect(
             "aUtHoRiZaTiOn": "Bearer secret",
             "COOKIE": "session=secret",
             "pRoXy-AuThOrIzAtIoN": "Basic secret",
+            "X-aPi-KeY": "secret-api-key",
         },
     )
 
@@ -286,6 +287,7 @@ async def test_crawler_strips_credentials_on_cross_origin_redirect(
     assert "Authorization" not in final.calls[0].request.headers
     assert "Cookie" not in final.calls[0].request.headers
     assert "Proxy-Authorization" not in final.calls[0].request.headers
+    assert "X-API-Key" not in final.calls[0].request.headers
 
 
 @pytest.mark.asyncio
@@ -318,3 +320,89 @@ async def test_crawler_retains_credentials_on_same_origin_redirect(
         final.calls[0].request.headers["Proxy-Authorization"]
         == "Basic secret"
     )
+
+
+@pytest.mark.asyncio
+async def test_crawler_follows_robots_redirect_and_honors_disallow(
+    tmp_path, respx_mock, settings
+):
+    respx_mock.get("https://example.test/robots.txt").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "/robots-final.txt"}
+        )
+    )
+    respx_mock.get("https://example.test/robots-final.txt").mock(
+        return_value=httpx.Response(
+            200, text="User-agent: *\nDisallow: /private"
+        )
+    )
+    resource = respx_mock.get("https://example.test/private/person").mock(
+        return_value=httpx.Response(200, text="must not be requested")
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/private/person")
+
+    assert result.status is SourceStatus.BLOCKED_BY_ROBOTS
+    assert resource.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_robots_and_resource_redirects_share_one_budget(
+    tmp_path, respx_mock, settings
+):
+    respx_mock.get("https://example.test/robots.txt").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "/robots-final.txt"}
+        )
+    )
+    respx_mock.get("https://example.test/robots-final.txt").mock(
+        return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
+    )
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(302, headers={"Location": "/final"})
+    )
+    final = respx_mock.get("https://example.test/final").mock(
+        return_value=httpx.Response(200, text="must not be requested")
+    )
+    crawler = HttpCrawler(
+        settings,
+        SqliteCache(tmp_path / "cache.sqlite3"),
+        FetchPolicy(max_redirects=1, per_domain_delay_seconds=0),
+    )
+
+    result = await crawler.fetch("https://example.test/person")
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert result.error == "too_many_redirects"
+    assert final.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_crawler_blocks_robots_redirect_loop_at_limit(
+    tmp_path, respx_mock, settings
+):
+    respx_mock.get("https://example.test/robots.txt").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "/robots-again.txt"}
+        )
+    )
+    respx_mock.get("https://example.test/robots-again.txt").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "/robots.txt"}
+        )
+    )
+    resource = respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(200, text="must not be requested")
+    )
+    crawler = HttpCrawler(
+        settings,
+        SqliteCache(tmp_path / "cache.sqlite3"),
+        FetchPolicy(max_redirects=1, per_domain_delay_seconds=0),
+    )
+
+    result = await crawler.fetch("https://example.test/person")
+
+    assert result.status is SourceStatus.BLOCKED_BY_ROBOTS
+    assert resource.call_count == 0

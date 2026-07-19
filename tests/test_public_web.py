@@ -416,3 +416,157 @@ async def test_public_homepage_rejects_mixed_dns_with_non_global_address(
 
     assert result.status is SourceStatus.SOURCE_UNAVAILABLE
     assert client_created is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "destination",
+    (
+        "https://www.researchgate.net/robots.txt",
+        "http://127.0.0.1/robots.txt",
+    ),
+)
+async def test_public_homepage_blocks_unsafe_robots_redirect(
+    tmp_path, respx_mock, settings, monkeypatch, destination
+):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/robots.txt").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": destination}
+        )
+    )
+    unsafe_robots = respx_mock.get(destination).mock(
+        return_value=httpx.Response(
+            200, text="User-agent: *\nAllow: /"
+        )
+    )
+    resource = respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/person").mock(
+        return_value=httpx.Response(200, text="<title>unsafe</title>")
+    )
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert unsafe_robots.call_count == 0
+    assert resource.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_blocks_dns_private_robots_redirect(
+    tmp_path, respx_mock, settings, monkeypatch
+):
+    def dns(host, port, *args, **kwargs):
+        if host == "private.example":
+            return [
+                (
+                    socket.AF_INET,
+                    socket.SOCK_STREAM,
+                    socket.IPPROTO_TCP,
+                    "",
+                    ("10.0.0.8", port),
+                )
+            ]
+        return _public_dns(host, port, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", dns)
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/robots.txt").mock(
+        return_value=httpx.Response(
+            302,
+            headers={
+                "Location": "https://private.example/robots.txt"
+            },
+        )
+    )
+    unsafe_robots = respx_mock.get(
+        "https://private.example/robots.txt"
+    ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
+    resource = respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/person").mock(
+        return_value=httpx.Response(200, text="<title>unsafe</title>")
+    )
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert unsafe_robots.call_count == 0
+    assert resource.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_pins_redirected_robots_host(
+    tmp_path, settings, monkeypatch
+):
+    resolution_calls = []
+    addresses = {
+        "safe.example": "93.184.216.34",
+        "robots.example": "1.1.1.1",
+    }
+
+    def dns(host, port, *args, **kwargs):
+        resolution_calls.append((host, port))
+        return [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+                "",
+                (addresses[host], port),
+            )
+        ]
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.host == "93.184.216.34":
+            return httpx.Response(
+                302,
+                headers={
+                    "Location": "https://robots.example/rules.txt"
+                },
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            text="User-agent: *\nDisallow: /person",
+            request=request,
+        )
+
+    def direct_client(_crawler, *, direct=False):
+        assert direct is True
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=False,
+            trust_env=False,
+        )
+
+    monkeypatch.setattr(socket, "getaddrinfo", dns)
+    monkeypatch.setattr(HttpCrawler, "_client", direct_client)
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert resolution_calls == [
+        ("safe.example", 443),
+        ("robots.example", 443),
+    ]
+    assert [request.url.host for request in requests] == [
+        "93.184.216.34",
+        "1.1.1.1",
+    ]
+    assert [request.headers["Host"] for request in requests] == [
+        "safe.example",
+        "robots.example",
+    ]
+    assert [request.extensions["sni_hostname"] for request in requests] == [
+        "safe.example",
+        "robots.example",
+    ]

@@ -15,12 +15,14 @@ _SECRET_QUERY_KEYS = {
     "key",
     "token",
 }
-_SECRET_HEADER_KEYS = {
-    "authorization",
-    "cookie",
-    "proxy-authorization",
-    "x-api-key",
-}
+SENSITIVE_HEADER_KEYS = frozenset(
+    {
+        "authorization",
+        "cookie",
+        "proxy-authorization",
+        "x-api-key",
+    }
+)
 
 
 def _sanitize_url(url: str) -> str:
@@ -38,7 +40,7 @@ def cache_key(method: str, url: str, headers: Mapping[str, str] | None = None) -
     safe_headers = [
         (
             key.lower(),
-            "<redacted>" if key.lower() in _SECRET_HEADER_KEYS else value,
+            "<redacted>" if key.lower() in SENSITIVE_HEADER_KEYS else value,
         )
         for key, value in (headers or {}).items()
     ]
