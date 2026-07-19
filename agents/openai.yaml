@@ -1,4 +1,4 @@
 interface:
   display_name: "Researcher Recruiting"
-  short_description: "Build source-backed recruiting profiles from papers"
-  default_prompt: "Use $researcher-recruiting-skill to research every author of this arXiv paper and produce evidence-backed recruiting artifacts."
+  short_description: "Find evidence-backed researcher contacts from papers"
+  default_prompt: "Use $researcher-recruiting-skill to research every author of this arXiv paper, find public professional contact routes, and produce evidence-backed recruiting artifacts."

@@ -1,52 +1,46 @@
 ---
 name: researcher-recruiting-skill
-description: Use when Codex needs to identify, enrich, or disambiguate authors of an arXiv paper for recruiting, talent research, academic sourcing, or researcher due diligence.
+description: Use when researching every author of an arXiv paper for recruiting, public professional contact discovery, talent sourcing, identity disambiguation, or evidence-backed researcher due diligence.
 ---
 
 # Researcher Recruiting
 
 Turn an arXiv URL, identifier, or exact title into reproducible,
 evidence-backed recruiting artifacts. Use the bundled CLI as the source of
-record; do not replace it with ad hoc searches.
+record rather than replacing it with ad hoc searches.
 
-## Workflow
+## Required workflow
 
-1. Read [references/compliance.md](references/compliance.md). Read
-   [references/sources.md](references/sources.md) when selecting, explaining,
-   or troubleshooting sources.
-2. Select Python 3.11 or newer. Try `python3.12`, then `python3.11`. In
-   Codex App, use the Python path returned by the workspace-dependencies tool
-   when system Python is older. Check with `"$PYTHON_BIN" --version`.
-3. Reuse `/private/tmp/researcher-recruiting-venv` when
-   `bin/python -c "import httpx, bs4, platformdirs"` succeeds. Otherwise,
-   request network access for dependency installation and create the virtual
-   environment outside a cloud-synced repository:
+1. Read [references/compliance.md](references/compliance.md) before collecting
+   data. Read [references/sources.md](references/sources.md) when selecting,
+   explaining, or troubleshooting sources.
+2. Use Python 3.11 or newer and install the package dependencies. Follow
+   [references/installation.md](references/installation.md) for generic,
+   standalone, and optional agent discovery installation paths.
+3. From the skill directory, run:
 
    ```bash
-   "$PYTHON_BIN" -m venv /private/tmp/researcher-recruiting-venv
-   /private/tmp/researcher-recruiting-venv/bin/python -m pip install -e '.[dev]'
+   python scripts/researcher_recruiting.py "<paper>" --output results
    ```
 
-4. From this skill directory, run:
+4. Add `--refresh` only when fresh data is explicitly requested. Let arXiv
+   categories select field-specific indexes; add `--sources name,name` only
+   for an explicit source override.
+5. Inspect the generated `run-log.json` before interpreting any blank field or
+   missing contact. Distinguish `not_found`, `source_unavailable`, and
+   `blocked_by_robots`.
+6. Retain every paper author, including authors with ambiguous identities,
+   missing contacts, or unavailable sources. Report each author's explicit
+   `contact_status`: `found`, `not_found`, `ambiguous`, or
+   `sources_unavailable`.
+7. Review identity evidence and never upgrade a match based on name alone.
+8. Present `report.md` and `candidates.csv`, mention the run directory, and
+   summarize unavailable sources. Preserve all machine-readable artifacts for
+   audit and reuse.
 
-   ```bash
-   /private/tmp/researcher-recruiting-venv/bin/python scripts/researcher_recruiting.py "<arXiv URL, id, or title>" --output results
-   ```
+## Artifact contract
 
-5. Add `--refresh` only when the user explicitly asks for fresh data. Let
-   arXiv categories select field-specific indexes. Add
-   `--sources name,name` only for an explicit user override.
-6. Open the generated `run-log.json` before interpreting a blank field.
-   Distinguish `not_found`, `source_unavailable`, and `blocked_by_robots`.
-7. Review ambiguous matches and their evidence. Never upgrade an identity
-   because names alone match.
-8. Present `report.md` and `candidates.csv`. Mention the run directory and
-   summarize unavailable sources. Preserve the JSON artifacts for audit or
-   downstream automation.
-
-## Required output contract
-
-Every successful or partial run produces exactly:
+Every successful or partial run produces:
 
 - `report.md`
 - `candidates.csv`
@@ -54,15 +48,16 @@ Every successful or partial run produces exactly:
 - `evidence.json`
 - `run-log.json`
 
-Keep `recruiting_notes` blank unless the user asks for an assessment. Do not
-send outreach or mutate external profiles.
+Keep `recruiting_notes` blank unless an assessment is requested. Do not send
+outreach or mutate external profiles.
 
-## Boundaries
+## Collection boundaries
 
 Google Scholar, ResearchGate, Academia.edu, LinkedIn, Maimai, and unlicensed
-commercial indexes are locator-only. Never fetch or parse their result/profile
-pages. Never request cookies, shared-account credentials, CAPTCHA solving,
-paywall bypass, browser-fingerprint evasion, or access-control bypass.
+commercial indexes are locator-only. Generate locator URLs, but never fetch or
+parse their result or profile pages.
 
-If a public source fails, retain the author, record the source status, and
-continue. Do not silently substitute a prohibited scraper.
+Never request cookies, shared-account credentials, CAPTCHA solving, paywall
+bypass, browser-fingerprint evasion, or access-control bypass. If a public
+source fails, retain the author, record the source and contact status, and
+continue without substituting a prohibited scraper.

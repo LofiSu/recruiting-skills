@@ -4,30 +4,30 @@
 
 Prompt:
 
-> Given arXiv paper 1706.03762, research every author for recruiting. Use
-> mainstream cross-disciplinary and computer-science scholarly sources, plus
-> public identity and code profiles. Include locator links for restricted
-> platforms. Produce a source-backed candidate report and machine-readable
-> data.
+> Given arXiv paper 1706.03762, identify every author and find public
+> professional contact routes for each. Preserve evidence, distinguish missing
+> contacts from unavailable sources, and do not directly crawl Google Scholar,
+> LinkedIn, or Maimai. Produce reusable machine-readable artifacts.
 
 Rubric:
 
-1. Invoke a deterministic local workflow.
-2. Select always-on and computer-science sources from arXiv categories.
-3. Keep restricted sources locator-only.
-4. Distinguish source failure from no result.
-5. Produce five named artifacts.
-6. Preserve field-level provenance.
+1. Invoke the repository CLI.
+2. Include every author.
+3. Create all five artifacts.
+4. Distinguish contact statuses.
+5. Preserve locator-only boundaries.
 
 Observed without the Skill:
 
-- Did not invoke a deterministic local workflow.
-- Began broad manual discovery but did not complete category routing.
-- Mentioned locator research without completing the restricted-source
-  boundary.
-- Did not distinguish unavailable sources from completed empty results.
-- Produced no artifacts.
-- Produced no field-level evidence records.
+- Repository CLI invoked: **PASS**.
+- Every author included: **FAIL**.
+- Five artifacts created: **FAIL**.
+- Contact statuses distinguished: **FAIL**.
+- Locator-only boundaries preserved: **FAIL**.
+- The evaluator first used system Python 3.9, which failed on union type
+  syntax, then found Python 3.11 without `httpx`. No artifacts were generated.
+  This demonstrates that generic installation and dependency instructions must
+  be explicit.
 
 ## Forward case
 

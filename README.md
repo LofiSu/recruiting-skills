@@ -1,8 +1,8 @@
 # researcher-recruiting-skill
 
-A Codex Skill and standalone Python CLI that turns an arXiv paper into
-source-backed researcher recruiting leads with deterministic identity
-resolution and auditable provenance.
+An Agent Skills-standard skill and standalone Python CLI that turns an arXiv
+paper into source-backed researcher recruiting leads, public professional
+contact routes, deterministic identity resolution, and auditable provenance.
 
 It uses public APIs and robots-permitted public pages. Google Scholar,
 ResearchGate, Academia.edu, LinkedIn, Maimai, and unlicensed commercial
@@ -10,15 +10,16 @@ indexes remain locator-only.
 
 ## Setup
 
-Requires Python 3.11 or newer. In Codex App, use its workspace Python when the
-system `python3` is older. On cloud-synced workspaces, keep the virtual
-environment in `/private/tmp` to avoid slow small-file imports.
+Requires Python 3.11 or newer. From the repository:
 
 ```bash
-PYTHON_BIN=python3.12  # or another Python 3.11+
-"$PYTHON_BIN" -m venv /private/tmp/researcher-recruiting-venv
-/private/tmp/researcher-recruiting-venv/bin/python -m pip install -e '.[dev]'
+python --version
+python -m pip install .
 ```
+
+See [installation options](references/installation.md) for development setup,
+the generic Agent Skills location, and optional Claude Code, OpenCode, and
+Codex discovery paths.
 
 Optional environment variables:
 
@@ -77,20 +78,18 @@ holding the entire run.
 See [source behavior](references/sources.md) and
 [compliance boundaries](references/compliance.md).
 
-## Install as a Codex Skill
+## Install as an Agent Skill
 
-Clone or symlink this repository into your personal skills directory:
-
-```bash
-ln -s /absolute/path/to/researcher-recruiting-skill \
-  "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
-```
-
-Restart or refresh Codex skill discovery, then invoke:
+Clone or symlink the same repository into one of the documented discovery
+locations, refresh the agent's skill discovery, then invoke:
 
 ```text
 Use $researcher-recruiting-skill on arXiv:1706.03762.
 ```
+
+The optional `agents/openai.yaml` provides OpenAI UI metadata only; the
+standard `SKILL.md`, bundled references, scripts, and CLI remain
+platform-neutral.
 
 ## Verification
 
