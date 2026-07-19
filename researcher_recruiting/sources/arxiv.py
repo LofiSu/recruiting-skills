@@ -3,7 +3,11 @@ from xml.etree import ElementTree
 
 import httpx
 
-from researcher_recruiting.models import AuthorSeed, PaperRecord
+from researcher_recruiting.models import (
+    PAPER_EMAIL_PROVENANCE,
+    AuthorSeed,
+    PaperRecord,
+)
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 ARXIV_ID_RE = re.compile(
@@ -12,6 +16,14 @@ ARXIV_ID_RE = re.compile(
 )
 ATOM = "{http://www.w3.org/2005/Atom}"
 ARXIV = "{http://arxiv.org/schemas/atom}"
+_EMAIL_RE = re.compile(
+    r"[A-Z0-9!#$%&'*+/=?^_`{|}~-]+"
+    r"(?:\.[A-Z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+    r"@"
+    r"[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?"
+    r"(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+",
+    re.IGNORECASE | re.ASCII,
+)
 
 
 class PaperNotFound(LookupError):
@@ -28,6 +40,31 @@ def _text(entry: ElementTree.Element, name: str) -> str:
     return " ".join((node.text or "").split()) if node is not None else ""
 
 
+def _explicit_author_email(
+    author: ElementTree.Element,
+) -> str | None:
+    nodes = [
+        *author.findall(f"{ATOM}email"),
+        *author.findall(f"{ARXIV}email"),
+    ]
+    if len(nodes) != 1:
+        return None
+    value = nodes[0].text or ""
+    if (
+        not value
+        or len(value) > 254
+        or "," in value
+        or ";" in value
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or _EMAIL_RE.fullmatch(value) is None
+    ):
+        return None
+    local, domain = value.rsplit("@", 1)
+    if len(local) > 64 or len(domain) > 253:
+        return None
+    return value
+
+
 def _parse_entry(entry: ElementTree.Element) -> PaperRecord:
     entry_id = _text(entry, "id")
     arxiv_id = parse_arxiv_id(entry_id)
@@ -39,18 +76,14 @@ def _parse_entry(entry: ElementTree.Element) -> PaperRecord:
     for author in entry.findall(f"{ATOM}author"):
         name = _text(author, "name")
         affiliation = author.find(f"{ARXIV}affiliation")
-        email = author.find(f"{ATOM}email")
-        if email is None:
-            email = author.find(f"{ARXIV}email")
+        email = _explicit_author_email(author)
         author_data.append(
             (
                 name,
                 " ".join((affiliation.text or "").split())
                 if affiliation is not None
                 else None,
-                " ".join((email.text or "").split())
-                if email is not None
-                else None,
+                email,
             )
         )
 
@@ -63,6 +96,9 @@ def _parse_entry(entry: ElementTree.Element) -> PaperRecord:
                 other for other, _, _ in author_data if other != name
             ),
             paper_title=title,
+            email_provenance=(
+                PAPER_EMAIL_PROVENANCE if email is not None else None
+            ),
         )
         for name, affiliation, email in author_data
     )

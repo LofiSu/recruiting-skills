@@ -273,3 +273,65 @@ def test_run_log_scopes_duplicate_names_by_author_id(tmp_path, run_result):
         [attempt["source"] for attempt in author["source_attempts"]]
         for author in log["authors"]
     ] == [["github"], ["orcid"]]
+
+
+def test_exporters_use_legacy_author_alignment_when_matches_are_reversed(
+    tmp_path, run_result
+):
+    first = run_result.matches[0]
+    second_seed = AuthorSeed(
+        name="Charles Babbage",
+        affiliation="Analytical Engines",
+    )
+    second = IdentityMatch(
+        author=second_seed,
+        state=first.state,
+        confidence=first.confidence,
+        reasons=first.reasons,
+        evidence=(),
+        contact_status=ContactStatus.NOT_FOUND,
+    )
+    paper = PaperRecord(
+        arxiv_id=run_result.paper.arxiv_id,
+        title=run_result.paper.title,
+        abstract=run_result.paper.abstract,
+        submitted_at=run_result.paper.submitted_at,
+        categories=run_result.paper.categories,
+        authors=(first.author, second_seed),
+        source_url=run_result.paper.source_url,
+    )
+    run = RunResult(
+        paper=paper,
+        matches=(second, first),
+        source_results=(
+            SourceResult(
+                "github",
+                SourceStatus.OK,
+                author_name=first.author.name,
+                author_order=1,
+                author_id="1706.03762:author:1",
+            ),
+            SourceResult(
+                "orcid",
+                SourceStatus.NOT_FOUND,
+                author_name=second.author.name,
+                author_order=2,
+                author_id="1706.03762:author:2",
+            ),
+        ),
+    )
+
+    run_dir = write_artifacts(run, tmp_path)
+    candidates = json.loads(
+        (run_dir / "candidates.json").read_text(encoding="utf-8")
+    )
+    log = json.loads(
+        (run_dir / "run-log.json").read_text(encoding="utf-8")
+    )
+
+    assert [item["author_order"] for item in candidates] == [2, 1]
+    assert [author["author_order"] for author in log["authors"]] == [2, 1]
+    assert [
+        [attempt["source"] for attempt in author["source_attempts"]]
+        for author in log["authors"]
+    ] == [["orcid"], ["github"]]

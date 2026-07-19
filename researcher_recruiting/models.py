@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Mapping
 
+PAPER_EMAIL_PROVENANCE = "arxiv_atom_author_email"
+
 
 class SourceStatus(str, Enum):
     OK = "ok"
@@ -44,6 +46,7 @@ class AuthorSeed:
     coauthors: tuple[str, ...] = ()
     paper_title: str | None = None
     research_terms: tuple[str, ...] = ()
+    email_provenance: str | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,8 @@ class IdentityMatch:
     evidence: tuple[Evidence, ...]
     contact_status: ContactStatus = ContactStatus.NOT_FOUND
     contact_points: tuple[ContactPoint, ...] = ()
+    author_order: int | None = None
+    author_id: str | None = None
 
 
 @dataclass(frozen=True)

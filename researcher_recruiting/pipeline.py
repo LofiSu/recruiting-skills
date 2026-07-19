@@ -6,6 +6,7 @@ from typing import Any, Iterable, Protocol
 from researcher_recruiting.contacts import attach_contacts
 from researcher_recruiting.identity import resolve_identity
 from researcher_recruiting.models import (
+    PAPER_EMAIL_PROVENANCE,
     AuthorSeed,
     Evidence,
     PaperRecord,
@@ -142,18 +143,41 @@ class ResearchPipeline:
         author_order: int,
         author_id: str,
     ) -> SourceResult:
-        evidence_items = ()
+        evidence_items: tuple[Evidence, ...] = ()
         status = SourceStatus.NOT_FOUND
-        if seed.email and seed.email.strip():
+        if (
+            seed.email
+            and seed.email.strip()
+            and seed.email_provenance == PAPER_EMAIL_PROVENANCE
+        ):
+            timestamp = collected_at()
             evidence_items = (
                 Evidence(
                     source="paper",
                     field="email",
                     value=seed.email,
                     url=paper.source_url,
-                    collected_at=collected_at(),
+                    collected_at=timestamp,
                     candidate_id=author_id,
                     metadata={"visibility": "public_professional"},
+                ),
+                Evidence(
+                    source="paper",
+                    field="name",
+                    value=seed.name,
+                    url=paper.source_url,
+                    collected_at=timestamp,
+                    candidate_id=author_id,
+                    metadata={"association": "paper_author"},
+                ),
+                Evidence(
+                    source="paper",
+                    field="paper_title",
+                    value=paper.title,
+                    url=paper.source_url,
+                    collected_at=timestamp,
+                    candidate_id=author_id,
+                    metadata={"association": "paper_author"},
                 ),
             )
             status = SourceStatus.OK
@@ -318,6 +342,11 @@ class ResearchPipeline:
                 seed,
                 identity_evidence,
                 unavailable_sources=unavailable,
+            )
+            match = replace(
+                match,
+                author_order=author_order,
+                author_id=author_id,
             )
             scoped_results = tuple(source_results)
             match = attach_contacts(match, scoped_results)

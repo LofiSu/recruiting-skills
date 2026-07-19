@@ -113,9 +113,67 @@ def _first_contact_value(
     )
 
 
+def _stable_author_id(run: RunResult, author_order: int) -> str:
+    return f"{run.paper.arxiv_id}:author:{author_order}"
+
+
+def _match_scope(
+    run: RunResult,
+    match: Any,
+    match_index: int,
+) -> tuple[int | None, str | None]:
+    author_order = match.author_order
+    if author_order is None:
+        identity_positions = [
+            order
+            for order, author in enumerate(run.paper.authors, start=1)
+            if author is match.author
+        ]
+        equality_positions = [
+            order
+            for order, author in enumerate(run.paper.authors, start=1)
+            if author == match.author
+        ]
+        name_positions = [
+            order
+            for order, author in enumerate(run.paper.authors, start=1)
+            if author.name == match.author.name
+        ]
+        for positions in (
+            identity_positions,
+            equality_positions,
+            name_positions,
+        ):
+            if len(positions) == 1:
+                author_order = positions[0]
+                break
+        else:
+            positionally_aligned = (
+                len(run.matches) == len(run.paper.authors)
+                and all(
+                    candidate.author is author
+                    for candidate, author in zip(
+                        run.matches,
+                        run.paper.authors,
+                    )
+                )
+            )
+            if positionally_aligned:
+                author_order = match_index + 1
+    author_id = match.author_id
+    if author_id is None and author_order is not None:
+        author_id = _stable_author_id(run, author_order)
+    return author_order, author_id
+
+
 def _candidate_records(run: RunResult) -> list[dict[str, Any]]:
     records = []
-    for order, match in enumerate(run.matches, start=1):
+    for match_index, match in enumerate(run.matches):
+        author_order, author_id = _match_scope(
+            run,
+            match,
+            match_index,
+        )
         links = build_locator_links(match.author)
         evidence_items = tuple(match.evidence)
         contact_points = tuple(match.contact_points)
@@ -123,7 +181,8 @@ def _candidate_records(run: RunResult) -> list[dict[str, Any]]:
             {
                 "arxiv_id": run.paper.arxiv_id,
                 "paper_title": run.paper.title,
-                "author_order": order,
+                "author_order": author_order,
+                "author_id": author_id,
                 "author_name": match.author.name,
                 "original_affiliation": match.author.affiliation or "",
                 "identity_state": match.state.value,
@@ -326,14 +385,17 @@ def _write_json(path: Path, value: Any) -> None:
 def _source_result_matches_author(
     item: Any,
     *,
-    author_id: str,
-    author_order: int,
+    author_id: str | None,
+    author_order: int | None,
     author_name: str,
 ) -> bool:
     if item.author_id is not None:
-        return item.author_id == author_id
+        return author_id is not None and item.author_id == author_id
     if item.author_order is not None:
-        return item.author_order == author_order
+        return (
+            author_order is not None
+            and item.author_order == author_order
+        )
     return item.author_name == author_name
 
 
@@ -351,6 +413,13 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
     final_path = output_root / final_name
     try:
         candidates = _candidate_records(run)
+        scoped_matches = [
+            (
+                match,
+                *_match_scope(run, match, match_index),
+            )
+            for match_index, match in enumerate(run.matches)
+        ]
         (temporary / "report.md").write_text(
             _report_markdown(run, candidates),
             encoding="utf-8",
@@ -399,9 +468,7 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
                 "authors": [
                     {
                         "author_order": author_order,
-                        "author_id": (
-                            f"{run.paper.arxiv_id}:author:{author_order}"
-                        ),
+                        "author_id": author_id,
                         "author_name": match.author.name,
                         "contact_status": match.contact_status,
                         "source_attempts": [
@@ -414,19 +481,13 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
                             for item in run.source_results
                             if _source_result_matches_author(
                                 item,
-                                author_id=(
-                                    f"{run.paper.arxiv_id}:author:"
-                                    f"{author_order}"
-                                ),
+                                author_id=author_id,
                                 author_order=author_order,
                                 author_name=match.author.name,
                             )
                         ],
                     }
-                    for author_order, match in enumerate(
-                        run.matches,
-                        start=1,
-                    )
+                    for match, author_order, author_id in scoped_matches
                 ],
                 "artifact_names": ARTIFACT_NAMES,
             },

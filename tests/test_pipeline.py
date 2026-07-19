@@ -1,12 +1,15 @@
+import json
 from unittest.mock import AsyncMock
 
 import pytest
 
+from researcher_recruiting.exporters import write_artifacts
 from researcher_recruiting.models import (
     AuthorSeed,
     ContactKind,
     ContactStatus,
     Evidence,
+    IdentityState,
     PaperRecord,
     SourceResult,
     SourceStatus,
@@ -346,11 +349,12 @@ async def test_pipeline_reassociates_verified_homepage_email_to_candidate(
 
 @pytest.mark.asyncio
 async def test_pipeline_starts_author_with_explicit_paper_email_evidence(
-    fake_paper,
+    fake_paper, tmp_path
 ):
     author = AuthorSeed(
         name="Ada Lovelace",
         email="Ada@University.Example",
+        email_provenance="arxiv_atom_author_email",
         paper_title=fake_paper.title,
     )
     paper = PaperRecord(
@@ -376,13 +380,67 @@ async def test_pipeline_starts_author_with_explicit_paper_email_evidence(
     assert paper_result.status is SourceStatus.OK
     assert paper_result.author_order == 1
     assert paper_result.author_id == "1706.03762:author:1"
-    assert len(paper_result.evidence) == 1
-    email = paper_result.evidence[0]
+    assert {item.field for item in paper_result.evidence} == {
+        "email",
+        "name",
+        "paper_title",
+    }
+    email = next(
+        item for item in paper_result.evidence if item.field == "email"
+    )
     assert email.field == "email"
     assert email.value == "Ada@University.Example"
     assert email.url == paper.source_url
     assert email.candidate_id == paper_result.author_id
     assert email.metadata["visibility"] == "public_professional"
+    match = result.matches[0]
+    assert match.author_order == 1
+    assert match.author_id == paper_result.author_id
+    assert match.state in {IdentityState.PROBABLE, IdentityState.CONFIRMED}
+    assert match.contact_status is ContactStatus.FOUND
+    contact = next(
+        point
+        for point in match.contact_points
+        if point.kind is ContactKind.PROFESSIONAL_EMAIL
+    )
+    assert contact.direct is True
+    candidates = json.loads(
+        (
+            write_artifacts(result, tmp_path) / "candidates.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert candidates[0]["email"] == "ada@university.example"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_rejects_unproven_programmatic_seed_email(fake_paper):
+    author = AuthorSeed(
+        name="Ada Lovelace",
+        email="ada@university.example",
+        paper_title=fake_paper.title,
+    )
+    paper = PaperRecord(
+        arxiv_id=fake_paper.arxiv_id,
+        title=fake_paper.title,
+        abstract=fake_paper.abstract,
+        submitted_at=fake_paper.submitted_at,
+        categories=fake_paper.categories,
+        authors=(author,),
+        source_url=fake_paper.source_url,
+    )
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=paper),
+        source_registry=RecordingRegistry(selected=()),
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+
+    result = await pipeline.run("1706.03762")
+
+    paper_result = result.source_results[0]
+    assert paper_result.source == "paper"
+    assert paper_result.status is SourceStatus.NOT_FOUND
+    assert paper_result.evidence == ()
 
 
 @pytest.mark.asyncio
@@ -437,6 +495,9 @@ async def test_pipeline_assigns_stable_scope_to_every_source_result(
         assert {item.author_id for item in author_results} == {
             f"{fake_paper.arxiv_id}:author:{order}"
         }
+        match = result.matches[order - 1]
+        assert match.author_order == order
+        assert match.author_id == f"{fake_paper.arxiv_id}:author:{order}"
 
 
 @pytest.mark.asyncio
