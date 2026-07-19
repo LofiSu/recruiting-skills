@@ -4,6 +4,8 @@ import pytest
 
 from researcher_recruiting.models import (
     AuthorSeed,
+    ContactKind,
+    ContactStatus,
     Evidence,
     PaperRecord,
     SourceResult,
@@ -158,6 +160,80 @@ async def test_pipeline_keeps_all_authors_when_one_source_fails(
     assert any(
         item.status is SourceStatus.SOURCE_UNAVAILABLE
         for item in result.source_results
+    )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_scopes_source_attempts_and_contacts_to_each_author(
+    fake_paper, evidence_factory
+):
+    github = StaticSource(
+        "github",
+        SourceResult(
+            "github",
+            SourceStatus.OK,
+            evidence=(
+                evidence_factory(
+                    field="name",
+                    value="Ada Lovelace",
+                    source="github",
+                ),
+                evidence_factory(
+                    field="paper_title",
+                    value=fake_paper.title,
+                    source="github",
+                ),
+                evidence_factory(
+                    field="orcid",
+                    value="0000-0001-2345-6789",
+                    source="github",
+                ),
+                evidence_factory(
+                    field="email",
+                    value="ada@university.example",
+                    source="github",
+                ),
+            ),
+        ),
+    )
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=(github,)),
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+    result = await pipeline.run("1706.03762")
+    assert [match.author.name for match in result.matches] == [
+        author.name for author in fake_paper.authors
+    ]
+    assert all(source.author_name for source in result.source_results)
+    ada = result.matches[0]
+    assert ada.contact_status is ContactStatus.FOUND
+    assert any(
+        point.kind is ContactKind.PROFESSIONAL_EMAIL
+        for point in ada.contact_points
+    )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_marks_author_contacts_unavailable_without_dropping_authors(
+    fake_paper, unavailable_source
+):
+    pipeline = ResearchPipeline(
+        paper_resolver=AsyncMock(return_value=fake_paper),
+        source_registry=RecordingRegistry(selected=(unavailable_source,)),
+        work_enrichers=(),
+        public_web_source=FakePublicWebSource(),
+    )
+
+    result = await pipeline.run("1706.03762")
+
+    assert [match.author.name for match in result.matches] == [
+        author.name for author in fake_paper.authors
+    ]
+    assert all(
+        match.contact_status is ContactStatus.SOURCES_UNAVAILABLE
+        for match in result.matches
     )
 
 

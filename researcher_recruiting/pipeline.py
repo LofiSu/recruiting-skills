@@ -1,7 +1,9 @@
 import asyncio
 import re
+from dataclasses import replace
 from typing import Any, Iterable, Protocol
 
+from researcher_recruiting.contacts import attach_contacts
 from researcher_recruiting.identity import resolve_identity
 from researcher_recruiting.models import (
     AuthorSeed,
@@ -119,6 +121,13 @@ class ResearchPipeline:
             evidence=items,
         )
 
+    @staticmethod
+    def _scope_result(
+        result: SourceResult,
+        seed: AuthorSeed,
+    ) -> SourceResult:
+        return replace(result, author_name=seed.name)
+
     async def _run_author(
         self,
         seed: AuthorSeed,
@@ -127,7 +136,8 @@ class ResearchPipeline:
     ) -> tuple[Any, tuple[SourceResult, ...]]:
         async with semaphore:
             author_results = tuple(
-                await asyncio.gather(
+                self._scope_result(result, seed)
+                for result in await asyncio.gather(
                     *(
                         self._enrich_source(source, seed)
                         for source in selected_sources
@@ -150,7 +160,8 @@ class ResearchPipeline:
             )[:25]
             if self.work_enrichers:
                 work_results = tuple(
-                    await asyncio.gather(
+                    self._scope_result(result, seed)
+                    for result in await asyncio.gather(
                         *(
                             self._enrich_work(enricher, dois)
                             for enricher in self.work_enrichers
@@ -178,10 +189,14 @@ class ResearchPipeline:
                 )
             except Exception as error:
                 public_web_result = _source_failure("public_web", error)
+            public_web_result = self._scope_result(public_web_result, seed)
             source_results.append(public_web_result)
             evidence_items.extend(public_web_result.evidence)
 
-            locator_result = self._locator_result(seed)
+            locator_result = self._scope_result(
+                self._locator_result(seed),
+                seed,
+            )
             source_results.append(locator_result)
             evidence_items.extend(locator_result.evidence)
             unavailable = tuple(
@@ -193,12 +208,19 @@ class ResearchPipeline:
                     SourceStatus.BLOCKED_BY_ROBOTS,
                 }
             )
+            identity_evidence = tuple(
+                item
+                for item in evidence_items
+                if item.metadata.get("mode") != "locator_only"
+            )
             match = resolve_identity(
                 seed,
-                tuple(evidence_items),
+                identity_evidence,
                 unavailable_sources=unavailable,
             )
-            return match, tuple(source_results)
+            scoped_results = tuple(source_results)
+            match = attach_contacts(match, scoped_results)
+            return match, scoped_results
 
     async def run(
         self,
