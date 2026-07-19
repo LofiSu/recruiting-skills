@@ -59,6 +59,46 @@ Second forward-test environment result:
 The Skill now reuses a validated temporary environment and requests network
 only when dependency installation or public API access actually needs it.
 
+### Revised-Skill outcome
+
+The fresh Agent loaded `SKILL.md` and invoked the bundled CLI without a Codex-
+or Claude-specific command. Its child sandbox run failed with `ConnectError`
+because the controller's network grant did not propagate into that sandbox.
+The controller then ran the same platform-neutral CLI with granted network
+access and generated:
+
+```text
+/Users/sulin/Documents/Codex/2026-07-16/agent-arxiv-open-review-github-claude/outputs/1706.03762-recruiting/1706.03762-20260719T102655744145Z
+```
+
+The fresh Agent inspected that run and observed:
+
+- Bundled CLI invoked with a platform-neutral command: **PASS**.
+- Every author retained, eight in paper order: **PASS**.
+- Exactly five artifacts created: **PASS**.
+- `run-log.json` inspected: **PASS**.
+- Explicit per-author contact statuses reported: **PASS**.
+- Scholar, LinkedIn, and Maimai kept locator-only: **PASS**.
+
+The statuses were:
+
+- Ashish Vaswani: `sources_unavailable`
+- Noam Shazeer: `ambiguous`
+- Niki Parmar: `sources_unavailable`
+- Jakob Uszkoreit: `sources_unavailable`
+- Llion Jones: `sources_unavailable`
+- Aidan N. Gomez: `ambiguous`
+- Lukasz Kaiser: `sources_unavailable`
+- Illia Polosukhin: `sources_unavailable`
+
+Restricted Scholar, LinkedIn, and Maimai points all had `direct=false`,
+`confidence=0`, and `metadata.mode=locator_only`.
+
+All six criteria passed. Execution/artifact generation and fresh-Agent
+inspection were split across controller and child processes solely because
+network grants did not propagate to the child sandbox; this was not a
+single-process forward run.
+
 ## Root end-to-end result
 
 The final forward case was executed from the repository with:
