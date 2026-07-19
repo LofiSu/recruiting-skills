@@ -1,6 +1,7 @@
 import pytest
 
 from researcher_recruiting.contacts import attach_contacts
+from researcher_recruiting.crawling import FetchResult
 from researcher_recruiting.models import (
     AuthorSeed,
     ContactKind,
@@ -11,6 +12,26 @@ from researcher_recruiting.models import (
     SourceResult,
     SourceStatus,
 )
+from researcher_recruiting.sources.github import GitHubSource
+from researcher_recruiting.sources.orcid import OrcidSource
+from researcher_recruiting.sources.public_web import PublicWebSource
+from tests.helpers import StubCrawler
+
+
+class StaticTokenProvider:
+    async def get_token(self, client_id, client_secret):
+        return "public-token"
+
+
+def fetched(url, body, content_type="application/json"):
+    return FetchResult(
+        SourceStatus.OK,
+        url,
+        200,
+        content_type,
+        body.encode(),
+        False,
+    )
 
 
 def item(
@@ -129,7 +150,7 @@ def test_direct_contact_requires_public_professional_visibility(
                 item(
                     field,
                     "ada@example.org",
-                    source="public_web",
+                    source="paper",
                     visibility=visibility,
                 ),
             )
@@ -143,6 +164,30 @@ def test_direct_contact_requires_public_professional_visibility(
             ContactKind.PROFESSIONAL_EMAIL,
             ContactKind.CONTACT_FORM,
         }
+        for point in result.contact_points
+    )
+
+
+@pytest.mark.parametrize("source", ("github", "orcid"))
+def test_sources_that_only_prove_public_email_do_not_prove_contact_form(
+    source,
+):
+    result = attach_contacts(
+        match(
+            evidence=(
+                item(
+                    "contact_form",
+                    "https://ada.test/contact",
+                    source=source,
+                    visibility=None,
+                ),
+            )
+        ),
+        (),
+    )
+
+    assert all(
+        point.kind is not ContactKind.CONTACT_FORM
         for point in result.contact_points
     )
 
@@ -367,3 +412,176 @@ def test_no_contact_true_ambiguity_without_outage_remains_ambiguous():
     )
 
     assert result.contact_status is ContactStatus.AMBIGUOUS
+
+
+@pytest.mark.asyncio
+async def test_github_source_contacts_keep_public_email_and_profile_url(
+    load_fixture,
+):
+    search_url = "https://api.github.com/search/users"
+    api_profile_url = "https://api.github.com/users/ada"
+    crawler = StubCrawler(
+        {
+            search_url: [
+                fetched(
+                    search_url,
+                    load_fixture("github_user_search.json"),
+                )
+            ],
+            api_profile_url: [
+                fetched(
+                    api_profile_url,
+                    load_fixture("github_user.json"),
+                )
+            ],
+        }
+    )
+    enriched = await GitHubSource(crawler, token=None).enrich(
+        AuthorSeed(name="Ada Lovelace")
+    )
+
+    result = attach_contacts(match(evidence=enriched.evidence), (enriched,))
+    routes = {point.kind: point for point in result.contact_points}
+
+    assert routes[ContactKind.PROFESSIONAL_EMAIL].value == "ada@example.org"
+    assert routes[ContactKind.PROFESSIONAL_EMAIL].direct is True
+    assert routes[ContactKind.GITHUB].value == "https://github.com/ada"
+
+
+@pytest.mark.asyncio
+async def test_orcid_source_contacts_keep_api_public_email(load_fixture):
+    search_url = "https://pub.orcid.org/v3.0/search/"
+    record_url = (
+        "https://pub.orcid.org/v3.0/0000-0001-2345-6789/record"
+    )
+    crawler = StubCrawler(
+        {
+            search_url: [
+                fetched(
+                    search_url,
+                    load_fixture("orcid_search.json"),
+                    "application/vnd.orcid+json",
+                )
+            ],
+            record_url: [
+                fetched(
+                    record_url,
+                    load_fixture("orcid_record.json"),
+                    "application/vnd.orcid+json",
+                )
+            ],
+        }
+    )
+    enriched = await OrcidSource(
+        crawler,
+        StaticTokenProvider(),
+        "client-id",
+        "client-secret",
+    ).enrich(AuthorSeed(name="Ada Lovelace"))
+
+    result = attach_contacts(match(evidence=enriched.evidence), (enriched,))
+    email = next(
+        point
+        for point in result.contact_points
+        if point.kind is ContactKind.PROFESSIONAL_EMAIL
+    )
+
+    assert email.value == "ada@example.org"
+    assert email.direct is True
+
+
+@pytest.mark.asyncio
+async def test_public_web_source_contacts_keep_mailto_and_real_profile_url(
+    load_fixture,
+):
+    homepage_url = "https://university.example/~ada/"
+    crawler = StubCrawler(
+        {
+            homepage_url: [
+                fetched(
+                    homepage_url,
+                    load_fixture("public_homepage.html"),
+                    "text/html",
+                )
+            ]
+        }
+    )
+    enriched = await PublicWebSource(crawler).enrich_urls((homepage_url,))
+
+    result = attach_contacts(match(evidence=enriched.evidence), (enriched,))
+    routes = {point.kind: point for point in result.contact_points}
+
+    assert (
+        routes[ContactKind.PROFESSIONAL_EMAIL].value
+        == "ada@university.example"
+    )
+    assert (
+        routes[ContactKind.OPENREVIEW].value
+        == "https://openreview.net/profile?id=~Ada_Lovelace1"
+    )
+    assert ContactKind.GITHUB not in routes
+
+
+@pytest.mark.parametrize(
+    ("field", "kind", "value"),
+    (
+        (
+            "github",
+            ContactKind.GITHUB,
+            "https://github.com/ada",
+        ),
+        (
+            "openreview",
+            ContactKind.OPENREVIEW,
+            "https://openreview.net/profile?id=~Ada_Lovelace1",
+        ),
+    ),
+)
+def test_cross_link_profile_routes_use_absolute_evidence_value(
+    field,
+    kind,
+    value,
+):
+    result = attach_contacts(
+        match(
+            evidence=(
+                item(
+                    field,
+                    value,
+                    source="public_web",
+                    url="https://university.example/~ada/",
+                ),
+            )
+        ),
+        (),
+    )
+
+    point = next(
+        point for point in result.contact_points if point.kind is kind
+    )
+    assert point.value == value
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("github", "ada"), ("openreview", "~Ada_Lovelace1")),
+)
+def test_cross_link_profile_ids_without_route_are_suppressed(field, value):
+    result = attach_contacts(
+        match(
+            evidence=(
+                item(
+                    field,
+                    value,
+                    source="public_web",
+                    url="https://university.example/~ada/",
+                ),
+            )
+        ),
+        (),
+    )
+
+    assert all(
+        point.kind not in {ContactKind.GITHUB, ContactKind.OPENREVIEW}
+        for point in result.contact_points
+    )

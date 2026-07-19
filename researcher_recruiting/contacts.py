@@ -1,4 +1,5 @@
 from dataclasses import replace
+from urllib.parse import urlsplit
 
 from researcher_recruiting.models import (
     ContactKind,
@@ -48,6 +49,10 @@ _DIRECT_KINDS = {
     ContactKind.PROFESSIONAL_EMAIL,
     ContactKind.CONTACT_FORM,
 }
+_PROVEN_PUBLIC_DIRECT_SOURCES_BY_KIND = {
+    ContactKind.PROFESSIONAL_EMAIL: {"github", "orcid", "public_web"},
+    ContactKind.CONTACT_FORM: {"public_web"},
+}
 _LOCATOR_KINDS = {
     "google_scholar": ContactKind.GOOGLE_SCHOLAR_LOCATOR,
     "linkedin": ContactKind.LINKEDIN_LOCATOR,
@@ -73,10 +78,32 @@ def _is_eligible(evidence: Evidence, kind: ContactKind) -> bool:
         return False
     if (
         kind in _DIRECT_KINDS
+        and evidence.source
+        not in _PROVEN_PUBLIC_DIRECT_SOURCES_BY_KIND[kind]
         and evidence.metadata.get("visibility") != "public_professional"
     ):
         return False
     return True
+
+
+def _contact_value(
+    evidence: Evidence,
+    kind: ContactKind,
+) -> str | None:
+    own_profile_source = (
+        kind is ContactKind.GITHUB and evidence.source == "github"
+    ) or (
+        kind is ContactKind.OPENREVIEW and evidence.source == "openreview"
+    )
+    if own_profile_source:
+        return evidence.url
+    if kind not in {ContactKind.GITHUB, ContactKind.OPENREVIEW}:
+        return evidence.value
+
+    parts = urlsplit(evidence.value.strip())
+    if parts.scheme in {"http", "https"} and parts.netloc:
+        return evidence.value
+    return None
 
 
 def build_contact_points(match: IdentityMatch) -> tuple[ContactPoint, ...]:
@@ -93,11 +120,9 @@ def build_contact_points(match: IdentityMatch) -> tuple[ContactPoint, ...]:
             or not _is_eligible(evidence, kind)
         ):
             continue
-        value = (
-            evidence.url
-            if kind in {ContactKind.GITHUB, ContactKind.OPENREVIEW}
-            else evidence.value
-        )
+        value = _contact_value(evidence, kind)
+        if value is None:
+            continue
         normalized = _normalized(kind, value)
         if normalized:
             grouped.setdefault((kind, normalized), []).append(evidence)
