@@ -21,9 +21,6 @@ class _UnsupportedContentType(Exception):
     pass
 
 
-URLSafetyPolicy = Callable[[str], Awaitable[bool]]
-
-
 @dataclass(frozen=True)
 class FetchPolicy:
     max_attempts: int = 3
@@ -52,9 +49,25 @@ class FetchResult:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class URLSafetyDecision:
+    connect_ip: str | None = None
+
+
+URLSafetyPolicy = Callable[
+    [str],
+    Awaitable[URLSafetyDecision | None],
+]
+
+
 class HttpCrawler:
     REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
     RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+    SENSITIVE_REDIRECT_HEADERS = {
+        "authorization",
+        "cookie",
+        "proxy-authorization",
+    }
 
     def __init__(
         self,
@@ -70,13 +83,18 @@ class HttpCrawler:
         self._robots: dict[str, RobotFileParser] = {}
         self.force_refresh = False
 
-    def _client(self) -> httpx.AsyncClient:
-        proxy = self.settings.https_proxy or self.settings.http_proxy
+    def _client(self, *, direct: bool = False) -> httpx.AsyncClient:
+        proxy = (
+            None
+            if direct
+            else self.settings.https_proxy or self.settings.http_proxy
+        )
         return httpx.AsyncClient(
             headers={"User-Agent": self.settings.user_agent},
             follow_redirects=False,
             timeout=self.settings.request_timeout_seconds,
             proxy=proxy,
+            trust_env=not direct,
         )
 
     async def _throttle(self, host: str) -> None:
@@ -86,7 +104,33 @@ class HttpCrawler:
             await asyncio.sleep(delay)
         self._last_request_at[host] = time.monotonic()
 
-    async def _robots_allows(self, url: str) -> bool:
+    @staticmethod
+    def _request_target(
+        url: str,
+        headers: Mapping[str, str],
+        connect_ip: str | None,
+    ) -> tuple[str, dict[str, str], dict[str, str]]:
+        if connect_ip is None:
+            return url, dict(headers), {}
+        logical_url = httpx.URL(url)
+        hostname = logical_url.raw_host.decode("ascii")
+        authority = f"[{hostname}]" if ":" in hostname else hostname
+        if logical_url.port is not None:
+            authority = f"{authority}:{logical_url.port}"
+        request_headers = httpx.Headers(headers)
+        request_headers["Host"] = authority
+        pinned_url = logical_url.copy_with(host=connect_ip)
+        return (
+            str(pinned_url),
+            dict(request_headers),
+            {"sni_hostname": hostname},
+        )
+
+    async def _robots_allows(
+        self,
+        url: str,
+        decision: URLSafetyDecision,
+    ) -> bool:
         parts = urlsplit(url)
         origin = f"{parts.scheme}://{parts.netloc}"
         if origin not in self._robots:
@@ -94,8 +138,17 @@ class HttpCrawler:
             parser = RobotFileParser()
             parser.set_url(robots_url)
             try:
-                async with self._client() as client:
-                    response = await client.get(robots_url)
+                request_url, headers, extensions = self._request_target(
+                    robots_url, {}, decision.connect_ip
+                )
+                async with self._client(
+                    direct=decision.connect_ip is not None
+                ) as client:
+                    response = await client.get(
+                        request_url,
+                        headers=headers,
+                        extensions=extensions,
+                    )
                 if response.status_code < 400:
                     parser.parse(response.text.splitlines())
                 else:
@@ -135,17 +188,26 @@ class HttpCrawler:
         self,
         url: str,
         headers: Mapping[str, str],
+        decision: URLSafetyDecision,
     ) -> httpx.Response:
         host = urlsplit(url).netloc
         lock = self._domain_locks.setdefault(host, asyncio.Lock())
         last_error: httpx.HTTPError | None = None
+        request_url, pinned_headers, extensions = self._request_target(
+            url, headers, decision.connect_ip
+        )
         for attempt in range(self.policy.max_attempts):
             async with lock:
                 await self._throttle(host)
                 try:
-                    async with self._client() as client:
+                    async with self._client(
+                        direct=decision.connect_ip is not None
+                    ) as client:
                         async with client.stream(
-                            "GET", url, headers=headers
+                            "GET",
+                            request_url,
+                            headers=pinned_headers,
+                            extensions=extensions,
                         ) as streamed:
                             if (
                                 streamed.status_code
@@ -176,7 +238,9 @@ class HttpCrawler:
                                 streamed.status_code,
                                 headers=streamed.headers,
                                 content=b"".join(chunks),
-                                request=streamed.request,
+                                request=httpx.Request(
+                                    "GET", url, headers=headers
+                                ),
                             )
                 except httpx.HTTPError as error:
                     last_error = error
@@ -206,14 +270,38 @@ class HttpCrawler:
             hostname
         )
 
-    async def _url_allowed(
+    async def _url_decision(
         self,
         url: str,
         url_safety: URLSafetyPolicy | None,
-    ) -> bool:
+    ) -> URLSafetyDecision | None:
         if not self._http_url(url):
-            return False
-        return url_safety is None or await url_safety(url)
+            return None
+        if url_safety is None:
+            return URLSafetyDecision()
+        return await url_safety(url)
+
+    @staticmethod
+    def _origin(url: str) -> tuple[str, str | None, int | None]:
+        parts = urlsplit(url)
+        port = parts.port
+        if port is None:
+            port = 443 if parts.scheme.casefold() == "https" else 80
+        return parts.scheme.casefold(), parts.hostname, port
+
+    def _redirect_headers(
+        self,
+        headers: Mapping[str, str],
+        source_url: str,
+        destination_url: str,
+    ) -> dict[str, str]:
+        if self._origin(source_url) == self._origin(destination_url):
+            return dict(headers)
+        return {
+            key: value
+            for key, value in headers.items()
+            if key.casefold() not in self.SENSITIVE_REDIRECT_HEADERS
+        }
 
     async def fetch(
         self,
@@ -227,7 +315,8 @@ class HttpCrawler:
         target = str(httpx.URL(url, params=params))
         request_headers = dict(headers or {})
         key = cache_key("GET", target, request_headers)
-        if not await self._url_allowed(target, url_safety):
+        decision = await self._url_decision(target, url_safety)
+        if decision is None:
             return FetchResult(
                 SourceStatus.SOURCE_UNAVAILABLE,
                 target,
@@ -239,7 +328,22 @@ class HttpCrawler:
             )
         if not (refresh or self.force_refresh):
             cached = self.cache.get(key)
-            if cached and await self._url_allowed(cached.url, url_safety):
+            if cached:
+                cached_decision = (
+                    decision
+                    if cached.url == target
+                    else await self._url_decision(cached.url, url_safety)
+                )
+                if cached_decision is None:
+                    return FetchResult(
+                        SourceStatus.SOURCE_UNAVAILABLE,
+                        cached.url,
+                        None,
+                        None,
+                        b"",
+                        True,
+                        "url_not_allowed",
+                    )
                 return FetchResult(
                     status=SourceStatus.OK,
                     url=cached.url,
@@ -252,17 +356,7 @@ class HttpCrawler:
         current = target
         redirects = 0
         while True:
-            if not await self._url_allowed(current, url_safety):
-                return FetchResult(
-                    SourceStatus.SOURCE_UNAVAILABLE,
-                    current,
-                    None,
-                    None,
-                    b"",
-                    False,
-                    "url_not_allowed",
-                )
-            if not await self._robots_allows(current):
+            if not await self._robots_allows(current, decision):
                 return FetchResult(
                     status=SourceStatus.BLOCKED_BY_ROBOTS,
                     url=current,
@@ -274,7 +368,9 @@ class HttpCrawler:
                 )
 
             try:
-                response = await self._request(current, request_headers)
+                response = await self._request(
+                    current, request_headers, decision
+                )
             except _UnsupportedContentType as error:
                 return FetchResult(
                     SourceStatus.SOURCE_UNAVAILABLE,
@@ -322,7 +418,9 @@ class HttpCrawler:
                         "too_many_redirects",
                     )
                 try:
-                    current = str(httpx.URL(urljoin(current, location)))
+                    destination = str(
+                        httpx.URL(urljoin(current, location))
+                    )
                 except (httpx.InvalidURL, ValueError):
                     return FetchResult(
                         SourceStatus.SOURCE_UNAVAILABLE,
@@ -333,6 +431,24 @@ class HttpCrawler:
                         False,
                         "invalid_redirect",
                     )
+                request_headers = self._redirect_headers(
+                    request_headers, current, destination
+                )
+                destination_decision = await self._url_decision(
+                    destination, url_safety
+                )
+                if destination_decision is None:
+                    return FetchResult(
+                        SourceStatus.SOURCE_UNAVAILABLE,
+                        destination,
+                        None,
+                        None,
+                        b"",
+                        False,
+                        "url_not_allowed",
+                    )
+                current = destination
+                decision = destination_decision
                 redirects += 1
                 continue
             break

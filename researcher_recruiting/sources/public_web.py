@@ -7,6 +7,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
+from researcher_recruiting.crawling import URLSafetyDecision
 from researcher_recruiting.models import SourceResult, SourceStatus
 from researcher_recruiting.sources.base import evidence
 
@@ -51,14 +52,8 @@ def _is_public_address(value: str) -> bool:
         address = ipaddress.ip_address(value)
     except ValueError:
         return False
-    return not (
-        address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_multicast
-        or address.is_reserved
-        or address.is_unspecified
-    )
+    mapped = getattr(address, "ipv4_mapped", None)
+    return address.is_global and (mapped is None or mapped.is_global)
 
 
 def _is_safe_public_url(url: str) -> bool:
@@ -80,14 +75,16 @@ def _is_safe_public_url(url: str) -> bool:
     return _is_public_address(host)
 
 
-async def _public_web_url_allowed(url: str) -> bool:
+async def _public_web_url_allowed(
+    url: str,
+) -> URLSafetyDecision | None:
     if not _is_safe_public_url(url):
-        return False
+        return None
     parts = urlsplit(url)
     host = parts.hostname
     assert host is not None
     if _is_restricted_host(host):
-        return False
+        return None
     try:
         ipaddress.ip_address(host)
     except ValueError:
@@ -100,10 +97,14 @@ async def _public_web_url_allowed(url: str) -> bool:
                 type=socket.SOCK_STREAM,
             )
         except (OSError, ValueError):
-            return False
-        addresses = {entry[4][0] for entry in resolved}
-        return bool(addresses) and all(map(_is_public_address, addresses))
-    return True
+            return None
+        addresses = tuple(
+            dict.fromkeys(entry[4][0] for entry in resolved)
+        )
+        if not addresses or not all(map(_is_public_address, addresses)):
+            return None
+        return URLSafetyDecision(connect_ip=addresses[0])
+    return URLSafetyDecision(connect_ip=host)
 
 
 def _same_origin(left: str, right: str) -> bool:

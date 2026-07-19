@@ -148,15 +148,18 @@ def _public_dns(host, port, *args, **kwargs):
     ]
 
 
+_PINNED_PUBLIC_ORIGIN = "https://93.184.216.34"
+
+
 @pytest.mark.asyncio
 async def test_public_homepage_does_not_follow_redirect_to_restricted_site(
     tmp_path, respx_mock, settings, monkeypatch
 ):
     monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
-    respx_mock.get("https://safe.example/robots.txt").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/robots.txt").mock(
         return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
     )
-    respx_mock.get("https://safe.example/person").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/person").mock(
         return_value=httpx.Response(
             302,
             headers={
@@ -186,10 +189,10 @@ async def test_public_homepage_does_not_follow_redirect_to_loopback(
     tmp_path, respx_mock, settings, monkeypatch
 ):
     monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
-    respx_mock.get("https://safe.example/robots.txt").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/robots.txt").mock(
         return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
     )
-    respx_mock.get("https://safe.example/person").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/person").mock(
         return_value=httpx.Response(
             302, headers={"Location": "http://127.0.0.1/admin"}
         )
@@ -225,10 +228,10 @@ async def test_public_homepage_does_not_follow_dns_to_private_address(
         return _public_dns(host, port, *args, **kwargs)
 
     monkeypatch.setattr(socket, "getaddrinfo", dns)
-    respx_mock.get("https://safe.example/robots.txt").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/robots.txt").mock(
         return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
     )
-    respx_mock.get("https://safe.example/person").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/person").mock(
         return_value=httpx.Response(
             302, headers={"Location": "https://private.example/admin"}
         )
@@ -255,18 +258,15 @@ async def test_public_homepage_allows_public_redirect_with_per_hop_robots(
     tmp_path, respx_mock, settings, monkeypatch
 ):
     monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
-    first_robots = respx_mock.get(
-        "https://safe.example/robots.txt"
+    robots = respx_mock.get(
+        f"{_PINNED_PUBLIC_ORIGIN}/robots.txt"
     ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
-    final_robots = respx_mock.get(
-        "https://public.example/robots.txt"
-    ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
-    respx_mock.get("https://safe.example/person").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/person").mock(
         return_value=httpx.Response(
             302, headers={"Location": "https://public.example/final"}
         )
     )
-    respx_mock.get("https://public.example/final").mock(
+    respx_mock.get(f"{_PINNED_PUBLIC_ORIGIN}/final").mock(
         return_value=httpx.Response(200, text="<title>Ada</title>")
     )
     crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
@@ -281,5 +281,138 @@ async def test_public_homepage_allows_public_redirect_with_per_hop_robots(
     )
     assert homepage.value == "https://public.example/final"
     assert homepage.url == "https://public.example/final"
-    assert first_robots.call_count == 1
-    assert final_robots.call_count == 1
+    assert robots.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_pins_one_validated_resolution_per_hop(
+    tmp_path, settings, monkeypatch
+):
+    resolution_calls = []
+
+    def rebinding_dns(host, port, *args, **kwargs):
+        resolution_calls.append((host, port))
+        address = (
+            "93.184.216.34"
+            if len(resolution_calls) == 1
+            else "127.0.0.1"
+        )
+        return [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+                "",
+                (address, port),
+            )
+        ]
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200, text="User-agent: *\nAllow: /", request=request
+            )
+        return httpx.Response(
+            200, text="<title>Ada</title>", request=request
+        )
+
+    def direct_client(_crawler, *, direct=False):
+        assert direct is True
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=False,
+            trust_env=False,
+        )
+
+    monkeypatch.setattr(socket, "getaddrinfo", rebinding_dns)
+    monkeypatch.setattr(HttpCrawler, "_client", direct_client)
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.OK
+    assert resolution_calls == [("safe.example", 443)]
+    assert [request.url.host for request in requests] == [
+        "93.184.216.34",
+        "93.184.216.34",
+    ]
+    assert [request.headers["Host"] for request in requests] == [
+        "safe.example",
+        "safe.example",
+    ]
+    assert [request.extensions["sni_hostname"] for request in requests] == [
+        "safe.example",
+        "safe.example",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_rejects_cgnat_and_mapped_private_literals():
+    cgnat = "http://100.64.0.1/person"
+    crawler = StubCrawler(
+        {cgnat: [html_result(cgnat, "<title>unsafe</title>")]}
+    )
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        (
+            cgnat,
+            "http://[::ffff:127.0.0.1]/person",
+        )
+    )
+
+    assert result.status is SourceStatus.NOT_FOUND
+    assert crawler.requests == []
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_rejects_mixed_dns_with_non_global_address(
+    tmp_path, settings, monkeypatch
+):
+    def mixed_dns(host, port, *args, **kwargs):
+        return [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+                "",
+                ("93.184.216.34", port),
+            ),
+            (
+                socket.AF_INET6,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+                "",
+                ("fd00::1", port, 0, 0),
+            ),
+        ]
+
+    client_created = False
+
+    def forbidden_client(_crawler, *, direct=False):
+        nonlocal client_created
+        client_created = True
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200, text="User-agent: *\nAllow: /", request=request
+                )
+            ),
+            follow_redirects=False,
+            trust_env=False,
+        )
+
+    monkeypatch.setattr(socket, "getaddrinfo", mixed_dns)
+    monkeypatch.setattr(HttpCrawler, "_client", forbidden_client)
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://mixed.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert client_created is False

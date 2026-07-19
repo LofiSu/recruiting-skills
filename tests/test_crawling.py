@@ -252,3 +252,69 @@ async def test_crawler_handles_malformed_redirect_without_details(
 
     assert result.status is SourceStatus.SOURCE_UNAVAILABLE
     assert result.error == "invalid_redirect"
+
+
+@pytest.mark.asyncio
+async def test_crawler_strips_credentials_on_cross_origin_redirect(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    respx_mock.get("https://other.test/robots.txt").mock(
+        return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
+    )
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "https://other.test/final"}
+        )
+    )
+    final = respx_mock.get("https://other.test/final").mock(
+        return_value=httpx.Response(200, text="final")
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch(
+        "https://example.test/person",
+        headers={
+            "aUtHoRiZaTiOn": "Bearer secret",
+            "COOKIE": "session=secret",
+            "pRoXy-AuThOrIzAtIoN": "Basic secret",
+        },
+    )
+
+    assert result.status is SourceStatus.OK
+    assert "Authorization" not in final.calls[0].request.headers
+    assert "Cookie" not in final.calls[0].request.headers
+    assert "Proxy-Authorization" not in final.calls[0].request.headers
+
+
+@pytest.mark.asyncio
+async def test_crawler_retains_credentials_on_same_origin_redirect(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(302, headers={"Location": "/final"})
+    )
+    final = respx_mock.get("https://example.test/final").mock(
+        return_value=httpx.Response(200, text="final")
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch(
+        "https://example.test/person",
+        headers={
+            "Authorization": "Bearer secret",
+            "Cookie": "session=secret",
+            "Proxy-Authorization": "Basic secret",
+        },
+    )
+
+    assert result.status is SourceStatus.OK
+    assert final.calls[0].request.headers["Authorization"] == "Bearer secret"
+    assert final.calls[0].request.headers["Cookie"] == "session=secret"
+    assert (
+        final.calls[0].request.headers["Proxy-Authorization"]
+        == "Basic secret"
+    )
