@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -23,3 +24,19 @@ async def test_real_arxiv_paper_generates_all_artifacts(tmp_path):
         "evidence.json",
         "run-log.json",
     }
+    candidates = json.loads(
+        (run_dirs[0] / "candidates.json").read_text(encoding="utf-8")
+    )
+    report = (run_dirs[0] / "report.md").read_text(encoding="utf-8")
+    for candidate in candidates:
+        section = report.split(
+            f"## {candidate['author_order']}. {candidate['author_name']}",
+            1,
+        )[1].split("\n## ", 1)[0]
+        assert "- Contact status: `" in section
+        assert (
+            "- Direct public contacts:" in section
+            or "- Public profiles:" in section
+            or "No verified public professional contact was found."
+            in section
+        )

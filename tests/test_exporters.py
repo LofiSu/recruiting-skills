@@ -1,8 +1,15 @@
 import csv
 import json
+from dataclasses import replace
 
 from researcher_recruiting.exporters import write_artifacts
-from researcher_recruiting.models import SourceResult, SourceStatus
+from researcher_recruiting.models import (
+    ContactKind,
+    ContactPoint,
+    ContactStatus,
+    SourceResult,
+    SourceStatus,
+)
 
 
 def test_write_artifacts_always_creates_five_files(tmp_path, run_result):
@@ -32,6 +39,8 @@ def test_candidates_csv_has_stable_recruiting_columns(
         "original_affiliation",
     ]
     assert "recruiting_notes" in header
+    assert "contact_status" in header
+    assert "contact_form" in header
 
 
 def test_json_artifacts_serialize_enums_and_keep_provenance(
@@ -58,6 +67,115 @@ def test_markdown_contains_clickable_source_and_locator_links(
     assert "[arXiv](https://arxiv.org/abs/1706.03762)" in report
     assert "[Google Scholar](" in report
     assert "Evidence" in report
+    assert "- Contact status: `found`" in report
+    assert (
+        "- Direct public contacts: "
+        "[email](mailto:ada@university.example), "
+        "[contact form](https://example.test/contact)"
+    ) in report
+    assert "- Locator-only: [Google Scholar](" in report
+
+
+def test_candidates_export_structured_contacts_and_status(
+    tmp_path, run_result
+):
+    run_dir = write_artifacts(run_result, tmp_path)
+    candidates = json.loads(
+        (run_dir / "candidates.json").read_text(encoding="utf-8")
+    )
+    record = candidates[0]
+    assert record["contact_status"] == "found"
+    assert record["email"] == "ada@university.example"
+    assert record["contact_form"] == "https://example.test/contact"
+    assert {
+        point["kind"] for point in record["contact_points"]
+    } >= {
+        "professional_email",
+        "google_scholar_locator",
+        "linkedin_locator",
+        "maimai_locator",
+    }
+
+
+def test_primary_contacts_require_direct_contact_points(
+    tmp_path, run_result
+):
+    indirect_points = (
+        ContactPoint(
+            kind=ContactKind.PROFESSIONAL_EMAIL,
+            value="private@example.test",
+            source="inferred",
+            source_url="https://example.test/inferred",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=10,
+            direct=False,
+        ),
+        ContactPoint(
+            kind=ContactKind.CONTACT_FORM,
+            value="https://example.test/inferred-contact",
+            source="inferred",
+            source_url="https://example.test/inferred",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=10,
+            direct=False,
+        ),
+    )
+    match = replace(
+        run_result.matches[0],
+        contact_points=indirect_points
+        + run_result.matches[0].contact_points,
+    )
+    run = replace(run_result, matches=(match,))
+    candidates = json.loads(
+        (
+            write_artifacts(run, tmp_path) / "candidates.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert candidates[0]["email"] == "ada@university.example"
+    assert (
+        candidates[0]["contact_form"]
+        == "https://example.test/contact"
+    )
+
+
+def test_profile_flat_fields_fall_back_to_legacy_evidence(
+    tmp_path, run_result, evidence_factory
+):
+    homepage = evidence_factory(
+        field="homepage",
+        value="https://example.test/legacy-homepage",
+    )
+    match = replace(
+        run_result.matches[0],
+        evidence=run_result.matches[0].evidence + (homepage,),
+    )
+    run = replace(run_result, matches=(match,))
+    candidates = json.loads(
+        (
+            write_artifacts(run, tmp_path) / "candidates.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        candidates[0]["homepage"]
+        == "https://example.test/legacy-homepage"
+    )
+
+
+def test_report_explains_when_no_verified_contact_exists(
+    tmp_path, run_result
+):
+    match = replace(
+        run_result.matches[0],
+        contact_status=ContactStatus.NOT_FOUND,
+        contact_points=(),
+    )
+    run = replace(run_result, matches=(match,))
+    report = (
+        write_artifacts(run, tmp_path) / "report.md"
+    ).read_text(encoding="utf-8")
+    section = report.split("## 1. Ada Lovelace", 1)[1]
+    assert "- Contact status: `not_found`" in section
+    assert "No verified public professional contact was found." in section
 
 
 def test_run_log_redacts_secret_bearing_errors(tmp_path, run_result):
@@ -69,6 +187,7 @@ def test_run_log_redacts_secret_bearing_errors(tmp_path, run_result):
                 "unsafe",
                 SourceStatus.SOURCE_UNAVAILABLE,
                 error="Authorization: Bearer super-secret-token",
+                author_name="Ada Lovelace",
             ),
         ),
     )
@@ -76,3 +195,16 @@ def test_run_log_redacts_secret_bearing_errors(tmp_path, run_result):
     log = (run_dir / "run-log.json").read_text(encoding="utf-8")
     assert "super-secret-token" not in log
     assert "[REDACTED]" in log
+
+
+def test_run_log_groups_source_attempts_by_author(tmp_path, run_result):
+    run_dir = write_artifacts(run_result, tmp_path)
+    log = json.loads(
+        (run_dir / "run-log.json").read_text(encoding="utf-8")
+    )
+    author = log["authors"][0]
+    assert author["author_name"] == "Ada Lovelace"
+    assert author["contact_status"] == "found"
+    assert {attempt["status"] for attempt in author["source_attempts"]} == {
+        "ok"
+    }

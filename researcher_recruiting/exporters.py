@@ -10,7 +10,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
 
-from researcher_recruiting.models import Evidence, RunResult
+from researcher_recruiting.models import (
+    ContactKind,
+    ContactPoint,
+    Evidence,
+    RunResult,
+)
 from researcher_recruiting.search_links import build_locator_links
 
 ARTIFACT_NAMES = (
@@ -29,8 +34,10 @@ CSV_COLUMNS = (
     "original_affiliation",
     "identity_state",
     "confidence",
+    "contact_status",
     "orcid",
     "email",
+    "contact_form",
     "homepage",
     "github",
     "openreview",
@@ -89,11 +96,29 @@ def _first_value(items: Iterable[Evidence], field: str) -> str:
     )
 
 
+def _first_contact_value(
+    points: Iterable[ContactPoint],
+    kind: ContactKind,
+    *,
+    direct: bool | None = None,
+) -> str:
+    return next(
+        (
+            point.value
+            for point in points
+            if point.kind is kind
+            and (direct is None or point.direct is direct)
+        ),
+        "",
+    )
+
+
 def _candidate_records(run: RunResult) -> list[dict[str, Any]]:
     records = []
     for order, match in enumerate(run.matches, start=1):
         links = build_locator_links(match.author)
         evidence_items = tuple(match.evidence)
+        contact_points = tuple(match.contact_points)
         records.append(
             {
                 "arxiv_id": run.paper.arxiv_id,
@@ -103,15 +128,47 @@ def _candidate_records(run: RunResult) -> list[dict[str, Any]]:
                 "original_affiliation": match.author.affiliation or "",
                 "identity_state": match.state.value,
                 "confidence": match.confidence,
+                "contact_status": match.contact_status.value,
                 "orcid": _first_value(evidence_items, "orcid"),
-                "email": _first_value(evidence_items, "email"),
-                "homepage": _first_value(evidence_items, "homepage"),
-                "github": _first_value(evidence_items, "github"),
-                "openreview": _first_value(evidence_items, "openreview"),
-                "google_scholar": links["google_scholar"],
-                "linkedin": links["linkedin"],
-                "maimai": links["maimai"],
+                "email": _first_contact_value(
+                    contact_points,
+                    ContactKind.PROFESSIONAL_EMAIL,
+                    direct=True,
+                ),
+                "contact_form": _first_contact_value(
+                    contact_points,
+                    ContactKind.CONTACT_FORM,
+                    direct=True,
+                ),
+                "homepage": _first_contact_value(
+                    contact_points, ContactKind.HOMEPAGE
+                )
+                or _first_value(evidence_items, "homepage"),
+                "github": _first_contact_value(
+                    contact_points, ContactKind.GITHUB
+                )
+                or _first_value(evidence_items, "github"),
+                "openreview": _first_contact_value(
+                    contact_points, ContactKind.OPENREVIEW
+                )
+                or _first_value(evidence_items, "openreview"),
+                "google_scholar": _first_contact_value(
+                    contact_points,
+                    ContactKind.GOOGLE_SCHOLAR_LOCATOR,
+                )
+                or links["google_scholar"],
+                "linkedin": _first_contact_value(
+                    contact_points,
+                    ContactKind.LINKEDIN_LOCATOR,
+                )
+                or links["linkedin"],
+                "maimai": _first_contact_value(
+                    contact_points,
+                    ContactKind.MAIMAI_LOCATOR,
+                )
+                or links["maimai"],
                 "locator_links": links,
+                "contact_points": _jsonable(contact_points),
                 "reasons": list(match.reasons),
                 "evidence": [_jsonable(item) for item in evidence_items],
                 "recruiting_notes": "",
@@ -169,6 +226,46 @@ def _report_markdown(
             "{identity_state} | {confidence} |".format(**record)
         )
     for record in candidates:
+        direct_contacts = []
+        if record["email"]:
+            direct_contacts.append(
+                f"[email](mailto:{record['email']})"
+            )
+        if record["contact_form"]:
+            direct_contacts.append(
+                f"[contact form]({record['contact_form']})"
+            )
+        public_profiles = [
+            f"[{label}]({record[field]})"
+            for label, field in (
+                ("Homepage", "homepage"),
+                ("GitHub", "github"),
+                ("OpenReview", "openreview"),
+            )
+            if record[field]
+        ]
+        contact_lines = [
+            f"- Contact status: `{record['contact_status']}`"
+        ]
+        if direct_contacts:
+            contact_lines.append(
+                "- Direct public contacts: "
+                + ", ".join(direct_contacts)
+            )
+        if public_profiles:
+            contact_lines.append(
+                "- Public profiles: " + ", ".join(public_profiles)
+            )
+        if not direct_contacts and not public_profiles:
+            contact_lines.append(
+                "No verified public professional contact was found."
+            )
+        contact_lines.append(
+            "- Locator-only: "
+            f"[Google Scholar]({record['google_scholar']}), "
+            f"[LinkedIn]({record['linkedin']}), "
+            f"[Maimai]({record['maimai']})"
+        )
         lines.extend(
             [
                 "",
@@ -182,10 +279,7 @@ def _report_markdown(
                     if record["reasons"]
                     else "none"
                 ),
-                "- Locators: "
-                f"[Google Scholar]({record['google_scholar']}), "
-                f"[LinkedIn]({record['linkedin']}), "
-                f"[Maimai]({record['maimai']})",
+                *contact_lines,
                 "",
                 "### Evidence",
                 "",
@@ -284,6 +378,23 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
                         "error": item.error,
                     }
                     for item in run.source_results
+                ],
+                "authors": [
+                    {
+                        "author_name": match.author.name,
+                        "contact_status": match.contact_status,
+                        "source_attempts": [
+                            {
+                                "source": item.source,
+                                "status": item.status,
+                                "evidence_count": len(item.evidence),
+                                "error": item.error,
+                            }
+                            for item in run.source_results
+                            if item.author_name == match.author.name
+                        ],
+                    }
+                    for match in run.matches
                 ],
                 "artifact_names": ARTIFACT_NAMES,
             },

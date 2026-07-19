@@ -3,11 +3,16 @@ from pathlib import Path
 
 from researcher_recruiting.models import (
     AuthorSeed,
+    ContactKind,
+    ContactPoint,
+    ContactStatus,
     Evidence,
     IdentityMatch,
     IdentityState,
     PaperRecord,
     RunResult,
+    SourceResult,
+    SourceStatus,
 )
 from researcher_recruiting.config import Settings
 
@@ -83,11 +88,76 @@ def run_result(author_seed, evidence_factory):
         authors=(author_seed,),
         source_url="https://arxiv.org/abs/1706.03762",
     )
+    paper_evidence = evidence_factory(
+        field="paper_title", value=paper.title
+    )
+    contact_points = (
+        ContactPoint(
+            kind=ContactKind.PROFESSIONAL_EMAIL,
+            value="ada@university.example",
+            source="university_profile",
+            source_url="https://example.test/ada",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=95,
+            direct=True,
+        ),
+        ContactPoint(
+            kind=ContactKind.CONTACT_FORM,
+            value="https://example.test/contact",
+            source="university_profile",
+            source_url="https://example.test/ada",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=90,
+            direct=True,
+        ),
+        ContactPoint(
+            kind=ContactKind.GOOGLE_SCHOLAR_LOCATOR,
+            value="https://scholar.google.com/scholar?q=Ada+Lovelace",
+            source="locator_links",
+            source_url="https://scholar.google.com/",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=0,
+            direct=False,
+        ),
+        ContactPoint(
+            kind=ContactKind.LINKEDIN_LOCATOR,
+            value=(
+                "https://www.linkedin.com/search/results/people/"
+                "?keywords=Ada%20Lovelace"
+            ),
+            source="locator_links",
+            source_url="https://www.linkedin.com/",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=0,
+            direct=False,
+        ),
+        ContactPoint(
+            kind=ContactKind.MAIMAI_LOCATOR,
+            value="https://maimai.cn/search?query=Ada%20Lovelace",
+            source="locator_links",
+            source_url="https://maimai.cn/",
+            collected_at="2026-07-18T00:00:00Z",
+            confidence=0,
+            direct=False,
+        ),
+    )
     match = IdentityMatch(
         author=author_seed,
         state=IdentityState.PROBABLE,
         confidence=65,
         reasons=("paper overlap",),
-        evidence=(evidence_factory(field="paper_title", value=paper.title),),
+        evidence=(paper_evidence,),
+        contact_status=ContactStatus.FOUND,
+        contact_points=contact_points,
     )
-    return RunResult(paper=paper, matches=(match,), source_results=())
+    source_result = SourceResult(
+        source="fixture",
+        status=SourceStatus.OK,
+        evidence=(paper_evidence,),
+        author_name=author_seed.name,
+    )
+    return RunResult(
+        paper=paper,
+        matches=(match,),
+        source_results=(source_result,),
+    )
