@@ -1,5 +1,7 @@
+import asyncio
 import ipaddress
 import re
+import socket
 from typing import Any
 from urllib.parse import unquote, urljoin, urlsplit
 
@@ -44,24 +46,64 @@ def _is_restricted_host(host: str) -> bool:
     )
 
 
-def _is_safe_public_url(url: str) -> bool:
-    parts = urlsplit(url)
-    if parts.scheme not in {"http", "https"} or not parts.hostname:
-        return False
-    host = parts.hostname.casefold().rstrip(".")
-    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
-        return False
+def _is_public_address(value: str) -> bool:
     try:
-        address = ipaddress.ip_address(host)
+        address = ipaddress.ip_address(value)
     except ValueError:
-        return True
+        return False
     return not (
         address.is_private
         or address.is_loopback
         or address.is_link_local
         or address.is_multicast
         or address.is_reserved
+        or address.is_unspecified
     )
+
+
+def _is_safe_public_url(url: str) -> bool:
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+        parts.port
+    except ValueError:
+        return False
+    if parts.scheme not in {"http", "https"} or not host:
+        return False
+    host = host.casefold().rstrip(".")
+    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
+        return False
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    return _is_public_address(host)
+
+
+async def _public_web_url_allowed(url: str) -> bool:
+    if not _is_safe_public_url(url):
+        return False
+    parts = urlsplit(url)
+    host = parts.hostname
+    assert host is not None
+    if _is_restricted_host(host):
+        return False
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            port = parts.port or (443 if parts.scheme == "https" else 80)
+            resolved = await asyncio.to_thread(
+                socket.getaddrinfo,
+                host,
+                port,
+                type=socket.SOCK_STREAM,
+            )
+        except (OSError, ValueError):
+            return False
+        addresses = {entry[4][0] for entry in resolved}
+        return bool(addresses) and all(map(_is_public_address, addresses))
+    return True
 
 
 def _same_origin(left: str, right: str) -> bool:
@@ -204,7 +246,9 @@ class PublicWebSource:
         items = []
         unavailable = False
         for url in safe_urls:
-            response = await self.crawler.fetch(url)
+            response = await self.crawler.fetch(
+                url, url_safety=_public_web_url_allowed
+            )
             if response.status is not SourceStatus.OK:
                 unavailable = True
                 continue
@@ -223,10 +267,12 @@ class PublicWebSource:
                     None,
                 )
                 if follow_url:
-                    follow_response = await self.crawler.fetch(follow_url)
+                    follow_response = await self.crawler.fetch(
+                        follow_url, url_safety=_public_web_url_allowed
+                    )
                     if follow_response.status is SourceStatus.OK:
                         follow_items, _ = self._extract(
-                            follow_url,
+                            follow_response.url or follow_url,
                             follow_response.body,
                             candidate_id,
                         )

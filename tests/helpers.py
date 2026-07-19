@@ -21,7 +21,15 @@ class StubCrawler:
     def last_params(self) -> Mapping[str, str]:
         return self.requests[-1].params
 
-    async def fetch(self, url, *, params=None, headers=None, refresh=False):
+    async def fetch(
+        self,
+        url,
+        *,
+        params=None,
+        headers=None,
+        refresh=False,
+        url_safety=None,
+    ):
         self.requests.append(
             RecordedRequest(url, dict(params or {}), dict(headers or {}))
         )

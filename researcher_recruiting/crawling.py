@@ -2,8 +2,8 @@ import asyncio
 import time
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
-from typing import Mapping
-from urllib.parse import urlsplit
+from typing import Awaitable, Callable, Mapping
+from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -21,9 +21,13 @@ class _UnsupportedContentType(Exception):
     pass
 
 
+URLSafetyPolicy = Callable[[str], Awaitable[bool]]
+
+
 @dataclass(frozen=True)
 class FetchPolicy:
     max_attempts: int = 3
+    max_redirects: int = 5
     base_delay_seconds: float = 0.25
     per_domain_delay_seconds: float = 0.5
     max_retry_after_seconds: float = 30.0
@@ -49,6 +53,7 @@ class FetchResult:
 
 
 class HttpCrawler:
+    REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
     RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
     def __init__(
@@ -69,7 +74,7 @@ class HttpCrawler:
         proxy = self.settings.https_proxy or self.settings.http_proxy
         return httpx.AsyncClient(
             headers={"User-Agent": self.settings.user_agent},
-            follow_redirects=True,
+            follow_redirects=False,
             timeout=self.settings.request_timeout_seconds,
             proxy=proxy,
         )
@@ -142,23 +147,31 @@ class HttpCrawler:
                         async with client.stream(
                             "GET", url, headers=headers
                         ) as streamed:
-                            content_type = self._content_type(streamed)
-                            if not self._content_type_allowed(content_type):
-                                raise _UnsupportedContentType(content_type)
-                            content_length = streamed.headers.get("Content-Length")
                             if (
-                                content_length
-                                and int(content_length)
-                                > self.settings.max_response_bytes
+                                streamed.status_code
+                                in self.REDIRECT_STATUS_CODES
                             ):
-                                raise _ResponseTooLarge
-                            chunks = []
-                            size = 0
-                            async for chunk in streamed.aiter_bytes():
-                                size += len(chunk)
-                                if size > self.settings.max_response_bytes:
+                                chunks = []
+                            else:
+                                content_type = self._content_type(streamed)
+                                if not self._content_type_allowed(content_type):
+                                    raise _UnsupportedContentType(content_type)
+                                content_length = streamed.headers.get(
+                                    "Content-Length"
+                                )
+                                if (
+                                    content_length
+                                    and int(content_length)
+                                    > self.settings.max_response_bytes
+                                ):
                                     raise _ResponseTooLarge
-                                chunks.append(chunk)
+                                chunks = []
+                                size = 0
+                                async for chunk in streamed.aiter_bytes():
+                                    size += len(chunk)
+                                    if size > self.settings.max_response_bytes:
+                                        raise _ResponseTooLarge
+                                    chunks.append(chunk)
                             response = httpx.Response(
                                 streamed.status_code,
                                 headers=streamed.headers,
@@ -182,6 +195,26 @@ class HttpCrawler:
         assert last_error is not None
         raise last_error
 
+    @staticmethod
+    def _http_url(url: str) -> bool:
+        try:
+            parts = urlsplit(url)
+            hostname = parts.hostname
+        except ValueError:
+            return False
+        return parts.scheme.casefold() in {"http", "https"} and bool(
+            hostname
+        )
+
+    async def _url_allowed(
+        self,
+        url: str,
+        url_safety: URLSafetyPolicy | None,
+    ) -> bool:
+        if not self._http_url(url):
+            return False
+        return url_safety is None or await url_safety(url)
+
     async def fetch(
         self,
         url: str,
@@ -189,13 +222,24 @@ class HttpCrawler:
         params: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
         refresh: bool = False,
+        url_safety: URLSafetyPolicy | None = None,
     ) -> FetchResult:
         target = str(httpx.URL(url, params=params))
         request_headers = dict(headers or {})
         key = cache_key("GET", target, request_headers)
+        if not await self._url_allowed(target, url_safety):
+            return FetchResult(
+                SourceStatus.SOURCE_UNAVAILABLE,
+                target,
+                None,
+                None,
+                b"",
+                False,
+                "url_not_allowed",
+            )
         if not (refresh or self.force_refresh):
             cached = self.cache.get(key)
-            if cached:
+            if cached and await self._url_allowed(cached.url, url_safety):
                 return FetchResult(
                     status=SourceStatus.OK,
                     url=cached.url,
@@ -205,55 +249,99 @@ class HttpCrawler:
                     from_cache=True,
                 )
 
-        if not await self._robots_allows(target):
-            return FetchResult(
-                status=SourceStatus.BLOCKED_BY_ROBOTS,
-                url=target,
-                status_code=None,
-                content_type=None,
-                body=b"",
-                from_cache=False,
-                error="blocked_by_robots",
-            )
+        current = target
+        redirects = 0
+        while True:
+            if not await self._url_allowed(current, url_safety):
+                return FetchResult(
+                    SourceStatus.SOURCE_UNAVAILABLE,
+                    current,
+                    None,
+                    None,
+                    b"",
+                    False,
+                    "url_not_allowed",
+                )
+            if not await self._robots_allows(current):
+                return FetchResult(
+                    status=SourceStatus.BLOCKED_BY_ROBOTS,
+                    url=current,
+                    status_code=None,
+                    content_type=None,
+                    body=b"",
+                    from_cache=False,
+                    error="blocked_by_robots",
+                )
 
-        try:
-            response = await self._request(target, request_headers)
-        except _UnsupportedContentType as error:
-            return FetchResult(
-                SourceStatus.SOURCE_UNAVAILABLE,
-                target,
-                None,
-                str(error),
-                b"",
-                False,
-                "unsupported_content_type",
-            )
-        except _ResponseTooLarge:
-            return FetchResult(
-                SourceStatus.SOURCE_UNAVAILABLE,
-                target,
-                None,
-                None,
-                b"",
-                False,
-                "response_too_large",
-            )
-        except httpx.HTTPError as error:
-            return FetchResult(
-                status=SourceStatus.SOURCE_UNAVAILABLE,
-                url=target,
-                status_code=None,
-                content_type=None,
-                body=b"",
-                from_cache=False,
-                error=type(error).__name__,
-            )
+            try:
+                response = await self._request(current, request_headers)
+            except _UnsupportedContentType as error:
+                return FetchResult(
+                    SourceStatus.SOURCE_UNAVAILABLE,
+                    current,
+                    None,
+                    str(error),
+                    b"",
+                    False,
+                    "unsupported_content_type",
+                )
+            except _ResponseTooLarge:
+                return FetchResult(
+                    SourceStatus.SOURCE_UNAVAILABLE,
+                    current,
+                    None,
+                    None,
+                    b"",
+                    False,
+                    "response_too_large",
+                )
+            except httpx.HTTPError as error:
+                return FetchResult(
+                    status=SourceStatus.SOURCE_UNAVAILABLE,
+                    url=current,
+                    status_code=None,
+                    content_type=None,
+                    body=b"",
+                    from_cache=False,
+                    error=type(error).__name__,
+                )
+
+            location = response.headers.get("Location")
+            if (
+                response.status_code in self.REDIRECT_STATUS_CODES
+                and location
+            ):
+                if redirects >= self.policy.max_redirects:
+                    return FetchResult(
+                        SourceStatus.SOURCE_UNAVAILABLE,
+                        current,
+                        response.status_code,
+                        None,
+                        b"",
+                        False,
+                        "too_many_redirects",
+                    )
+                try:
+                    current = str(httpx.URL(urljoin(current, location)))
+                except (httpx.InvalidURL, ValueError):
+                    return FetchResult(
+                        SourceStatus.SOURCE_UNAVAILABLE,
+                        current,
+                        response.status_code,
+                        None,
+                        b"",
+                        False,
+                        "invalid_redirect",
+                    )
+                redirects += 1
+                continue
+            break
 
         content_type = self._content_type(response)
         if not self._content_type_allowed(content_type):
             return FetchResult(
                 SourceStatus.SOURCE_UNAVAILABLE,
-                target,
+                current,
                 response.status_code,
                 content_type,
                 b"",
@@ -263,7 +351,7 @@ class HttpCrawler:
         if len(response.content) > self.settings.max_response_bytes:
             return FetchResult(
                 SourceStatus.SOURCE_UNAVAILABLE,
-                target,
+                current,
                 response.status_code,
                 content_type,
                 b"",
@@ -280,7 +368,7 @@ class HttpCrawler:
             self.cache.put(key, response)
         return FetchResult(
             status=status,
-            url=target,
+            url=current,
             status_code=response.status_code,
             content_type=content_type,
             body=response.content,

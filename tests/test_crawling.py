@@ -155,3 +155,100 @@ async def test_crawler_force_refresh_bypasses_cache(
     assert first.body == b"first"
     assert second.body == b"second"
     assert route.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_crawler_checks_robots_for_each_redirect_hop(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "https://other.test/private"}
+        )
+    )
+    respx_mock.get("https://other.test/robots.txt").mock(
+        return_value=httpx.Response(
+            200, text="User-agent: *\nDisallow: /private"
+        )
+    )
+    blocked = respx_mock.get("https://other.test/private").mock(
+        return_value=httpx.Response(200, text="must not be requested")
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/person")
+
+    assert result.status is SourceStatus.BLOCKED_BY_ROBOTS
+    assert result.url == "https://other.test/private"
+    assert blocked.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_crawler_reports_final_redirect_url(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    respx_mock.get("https://other.test/robots.txt").mock(
+        return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
+    )
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "https://other.test/final"}
+        )
+    )
+    respx_mock.get("https://other.test/final").mock(
+        return_value=httpx.Response(200, text="final")
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/person")
+
+    assert result.status is SourceStatus.OK
+    assert result.url == "https://other.test/final"
+    assert result.body == b"final"
+
+
+@pytest.mark.asyncio
+async def test_crawler_bounds_redirect_hops(tmp_path, respx_mock, settings):
+    allow_robots(respx_mock)
+    route = respx_mock.get("https://example.test/robots.txt")
+    for index in range(6):
+        respx_mock.get(f"https://example.test/{index}").mock(
+            return_value=httpx.Response(
+                302, headers={"Location": f"/{index + 1}"}
+            )
+        )
+    final = respx_mock.get("https://example.test/6").mock(
+        return_value=httpx.Response(200, text="must not be requested")
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/0")
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert result.error == "too_many_redirects"
+    assert route.call_count == 1
+    assert final.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_crawler_handles_malformed_redirect_without_details(
+    tmp_path, respx_mock, settings
+):
+    allow_robots(respx_mock)
+    respx_mock.get("https://example.test/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "http://[malformed"}
+        )
+    )
+
+    result = await HttpCrawler(
+        settings, SqliteCache(tmp_path / "cache.sqlite3")
+    ).fetch("https://example.test/person")
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert result.error == "invalid_redirect"

@@ -1,5 +1,10 @@
+import socket
+
+import httpx
 import pytest
 
+from researcher_recruiting.cache import SqliteCache
+from researcher_recruiting.crawling import HttpCrawler
 from researcher_recruiting.crawling import FetchResult
 from researcher_recruiting.models import SourceStatus
 from researcher_recruiting.sources.public_web import PublicWebSource
@@ -129,3 +134,152 @@ async def test_public_homepage_rejects_restricted_sites_without_fetch():
 
     assert enriched.status is SourceStatus.NOT_FOUND
     assert crawler.requests == []
+
+
+def _public_dns(host, port, *args, **kwargs):
+    return [
+        (
+            socket.AF_INET,
+            socket.SOCK_STREAM,
+            socket.IPPROTO_TCP,
+            "",
+            ("93.184.216.34", port),
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_does_not_follow_redirect_to_restricted_site(
+    tmp_path, respx_mock, settings, monkeypatch
+):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+    respx_mock.get("https://safe.example/robots.txt").mock(
+        return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
+    )
+    respx_mock.get("https://safe.example/person").mock(
+        return_value=httpx.Response(
+            302,
+            headers={
+                "Location": "https://www.researchgate.net/profile/Ada"
+            },
+        )
+    )
+    restricted_robots = respx_mock.get(
+        "https://www.researchgate.net/robots.txt"
+    ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
+    restricted = respx_mock.get(
+        "https://www.researchgate.net/profile/Ada"
+    ).mock(return_value=httpx.Response(200, text="<html>secret</html>"))
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert restricted_robots.call_count == 0
+    assert restricted.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_does_not_follow_redirect_to_loopback(
+    tmp_path, respx_mock, settings, monkeypatch
+):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+    respx_mock.get("https://safe.example/robots.txt").mock(
+        return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
+    )
+    respx_mock.get("https://safe.example/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "http://127.0.0.1/admin"}
+        )
+    )
+    loopback = respx_mock.get("http://127.0.0.1/admin").mock(
+        return_value=httpx.Response(200, text="<html>secret</html>")
+    )
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert loopback.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_does_not_follow_dns_to_private_address(
+    tmp_path, respx_mock, settings, monkeypatch
+):
+    def dns(host, port, *args, **kwargs):
+        if host == "private.example":
+            return [
+                (
+                    socket.AF_INET,
+                    socket.SOCK_STREAM,
+                    socket.IPPROTO_TCP,
+                    "",
+                    ("10.0.0.8", port),
+                )
+            ]
+        return _public_dns(host, port, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", dns)
+    respx_mock.get("https://safe.example/robots.txt").mock(
+        return_value=httpx.Response(200, text="User-agent: *\nAllow: /")
+    )
+    respx_mock.get("https://safe.example/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "https://private.example/admin"}
+        )
+    )
+    private_robots = respx_mock.get(
+        "https://private.example/robots.txt"
+    ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
+    private = respx_mock.get("https://private.example/admin").mock(
+        return_value=httpx.Response(200, text="<html>secret</html>")
+    )
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.SOURCE_UNAVAILABLE
+    assert private_robots.call_count == 0
+    assert private.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_public_homepage_allows_public_redirect_with_per_hop_robots(
+    tmp_path, respx_mock, settings, monkeypatch
+):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+    first_robots = respx_mock.get(
+        "https://safe.example/robots.txt"
+    ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
+    final_robots = respx_mock.get(
+        "https://public.example/robots.txt"
+    ).mock(return_value=httpx.Response(200, text="User-agent: *\nAllow: /"))
+    respx_mock.get("https://safe.example/person").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "https://public.example/final"}
+        )
+    )
+    respx_mock.get("https://public.example/final").mock(
+        return_value=httpx.Response(200, text="<title>Ada</title>")
+    )
+    crawler = HttpCrawler(settings, SqliteCache(tmp_path / "cache.sqlite3"))
+
+    result = await PublicWebSource(crawler).enrich_urls(
+        ("https://safe.example/person",)
+    )
+
+    assert result.status is SourceStatus.OK
+    homepage = next(
+        item for item in result.evidence if item.field == "homepage"
+    )
+    assert homepage.value == "https://public.example/final"
+    assert homepage.url == "https://public.example/final"
+    assert first_robots.call_count == 1
+    assert final_robots.call_count == 1
