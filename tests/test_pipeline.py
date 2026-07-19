@@ -206,7 +206,28 @@ async def test_pipeline_scopes_source_attempts_and_contacts_to_each_author(
     assert [match.author.name for match in result.matches] == [
         author.name for author in fake_paper.authors
     ]
-    assert all(source.author_name for source in result.source_results)
+    results_per_author, remainder = divmod(
+        len(result.source_results),
+        len(fake_paper.authors),
+    )
+    assert results_per_author > 0
+    assert remainder == 0
+    source_author_names = tuple(
+        source.author_name for source in result.source_results
+    )
+    actual_author_blocks = tuple(
+        source_author_names[start : start + results_per_author]
+        for start in range(
+            0,
+            len(source_author_names),
+            results_per_author,
+        )
+    )
+    expected_author_blocks = tuple(
+        (author.name,) * results_per_author
+        for author in fake_paper.authors
+    )
+    assert actual_author_blocks == expected_author_blocks
     ada = result.matches[0]
     assert ada.contact_status is ContactStatus.FOUND
     assert any(
