@@ -76,6 +76,7 @@ Escape every collected value before inserting it into HTML. Permit links only
 for `https`, `http`, and `mailto`. Keep names and paper titles exactly as the
 source presents them.
 
-The report must remain static: no scripts, search controls, status filters,
-audit toggles, sticky indexes, source-attempt dumps, candidate ratings, or
-automated recruiting recommendations.
+The report must remain a compact, static evidence table. Include only the paper
+summary, ordered author rows, public contact paths, verification states, and
+direct evidence links. Do not add interactive controls, scoring, or automated
+recruiting recommendations.
