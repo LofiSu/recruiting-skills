@@ -150,7 +150,7 @@ regression tests:
 - A server's excessive `Retry-After` value cannot hold the workflow beyond the
   configured retry budget.
 
-## Current HTML-only validation evidence
+## Earlier HTML-only validation evidence (pre-final head)
 
 Task 3 validated branch `feat/html-only-report` at revision `b1cfc64` before
 recording this evidence. The opt-in public-network smoke test passed:
@@ -178,6 +178,50 @@ aggregate contact status `sources_unavailable` because each had applicable
 unavailable sources and no verified contact. That aggregate status does not
 mean every individual source attempt was unavailable.
 
-This is the fresh execution evidence for the current HTML-only artifact
-criterion. The earlier records above remain truthfully labeled as legacy
-pre-HTML evidence.
+This was fresh execution evidence for the initial HTML-only artifact
+criterion. It is preserved as historical evidence and superseded by the
+final-head validation below. The earlier records above remain truthfully
+labeled as legacy pre-HTML evidence.
+
+## Final-head HTML-only validation evidence
+
+The final report was generated from code head `24746cb`. Before successful
+generation, two normal final-head CLI attempts were bounded-stopped at 300
+seconds while queued behind DBLP's serialized domain lock. Atomic publication
+worked as designed: neither stopped attempt left a partial output directory.
+
+The bounded final validation harness then used the same production pipeline
+and exporter with real `arXiv:2601.21998`, a three-second request timeout, and
+all normal always-on sources. It set `category_routes={}` to omit only DBLP
+and avoid the external serialized-lock delay. Production defaults and
+production code were not changed.
+
+The final output is:
+
+```text
+/Users/sulin/Documents/Codex/2026-07-16/agent-arxiv-open-review-github-claude/outputs/2601.21998-html-final/2601.21998-20260720T074934496393Z/report.html
+```
+
+Read-only inspection confirmed:
+
+- the run directory contains exactly one file, `report.html`;
+- the report is 1,333,715 bytes;
+- all 12 authors appear in paper order;
+- 168 source attempts are scoped under their corresponding authors;
+- those attempts contain 1,657 source-evidence entries;
+- 36 complete contact-point provenance records are present;
+- the Contact-point provenance section is present;
+- source-attempt outcomes are 24 `ok`, 60 `not_found`, 72
+  `source_unavailable`, and 12 `blocked_by_robots`;
+- all 12 authors have aggregate contact status `sources_unavailable`;
+- no unsafe `href` values or external assets are present.
+
+Final-head Playwright validation confirmed the expected report title,
+searching for `Qihang Zhang` reduces the visible results to one author, the
+`sources_unavailable` filter works, and the layout is responsive at 390×844.
+The only browser error was the test server's implicit favicon request
+returning 404; the report itself does not reference a favicon.
+
+The production public-network smoke test had already passed. After the
+fail-closed URL fix, all 25 exporter tests and all 200 selected non-network
+tests passed.
