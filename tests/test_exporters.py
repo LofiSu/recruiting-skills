@@ -163,9 +163,21 @@ def test_html_uses_chinese_article_design_and_original_content(
 
 
 def test_html_localizes_all_static_dossier_and_audit_copy(
-    tmp_path, run_result
+    tmp_path, run_result, monkeypatch
 ):
+    monkeypatch.setattr(
+        "researcher_recruiting.exporters.build_locator_links",
+        lambda _author: {
+            "google_scholar": "",
+            "linkedin": "",
+            "maimai": "",
+        },
+    )
     match = run_result.matches[0]
+    normal_soup = BeautifulSoup(
+        _report(run_result, tmp_path),
+        "html.parser",
+    )
     empty_report = _report(
         replace(
             run_result,
@@ -186,6 +198,15 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
         evidence=(),
         metadata={},
     )
+    nested_contact_evidence = Evidence(
+        source="fixture",
+        field="profile",
+        value="Identity Evidence Value Direct Field Metadata",
+        url="https://example.test/contact-evidence",
+        collected_at="2026-07-20T05:06:07Z",
+        candidate_id="nested-contact",
+        metadata={"note": "Identity Evidence"},
+    )
     source_without_evidence = replace(
         run_result.source_results[0],
         evidence=(),
@@ -198,6 +219,8 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
         collected_at="2026-07-20T05:06:07Z",
         confidence=90,
         direct=False,
+        evidence=(nested_contact_evidence,),
+        metadata={},
     )
     audit_report = _report(
         replace(
@@ -216,83 +239,228 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
         ),
         tmp_path,
     )
-    visible_text = " ".join(
-        BeautifulSoup(report, "html.parser").select_one(
-            "article.doc"
-        ).get_text(" ", strip=True)
-        for report in (
-            _report(run_result, tmp_path),
-            empty_report,
-            audit_report,
-        )
-    )
+    empty_soup = BeautifulSoup(empty_report, "html.parser")
+    audit_soup = BeautifulSoup(audit_report, "html.parser")
 
-    for expected in (
-        "作者 1",
+    def node_text(node):
+        assert node is not None
+        return node.get_text(" ", strip=True)
+
+    def direct_dt_labels(node):
+        return [
+            node_text(item)
+            for item in node.select(
+                ":scope > .audit-fields > div > dt"
+            )
+        ]
+
+    def direct_sections(candidate):
+        return {
+            node_text(heading): heading.parent
+            for heading in candidate.select(":scope > section > h3")
+        }
+
+    def direct_disclosures(candidate):
+        return {
+            node_text(summary): summary.parent
+            for summary in candidate.select(
+                ":scope > details > summary"
+            )
+        }
+
+    candidate = normal_soup.select_one("#author-1")
+    assert candidate is not None
+    assert node_text(
+        candidate.select_one(":scope > header > .eyebrow")
+    ) == "作者 1"
+    assert [
+        node_text(item)
+        for item in candidate.select(
+            ":scope > .facts > div > dt"
+        )
+    ] == [
         "身份匹配",
         "置信度",
         "联系状态",
+    ]
+
+    sections = direct_sections(candidate)
+    assert list(sections) == [
         "公开联系方式与资料",
         "仅用于定位的链接",
+    ]
+    assert [
+        node_text(link)
+        for link in sections["公开联系方式与资料"].select("a")
+    ] == [
+        "ada@university.example",
+        "联系表单",
+    ]
+    assert [
+        node_text(link)
+        for link in sections["仅用于定位的链接"].select("a")
+    ] == [
+        "Google Scholar",
+        "LinkedIn",
+        "Maimai",
+    ]
+
+    disclosures = direct_disclosures(candidate)
+    assert list(disclosures) == [
+        "联系方式溯源",
         "身份匹配理由",
         "证据",
         "来源尝试",
-        "联系方式溯源",
+    ]
+    assert "contact-provenance" in disclosures[
+        "联系方式溯源"
+    ]["class"]
+    assert node_text(
+        disclosures["身份匹配理由"].select_one(
+            ":scope > ul > li"
+        )
+    ) == "paper overlap"
+
+    evidence_item = disclosures["证据"].select_one(
+        ":scope > .audit-list > .evidence-item"
+    )
+    assert evidence_item is not None
+    evidence_labels = [
+        "来源",
+        "字段",
+        "值",
+        "链接",
+        "采集时间",
+        "候选人 ID",
+        "元数据",
+    ]
+    assert direct_dt_labels(evidence_item) == evidence_labels
+
+    source_attempt = disclosures["来源尝试"].select_one(
+        ':scope > .audit-list > .source-attempt[data-source="fixture"]'
+    )
+    assert source_attempt is not None
+    source_evidence = source_attempt.select_one(
+        ":scope > .audit-list > .source-evidence"
+    )
+    assert source_evidence is not None
+    assert direct_dt_labels(source_evidence) == evidence_labels
+
+    audit_candidate = audit_soup.select_one("#author-1")
+    assert audit_candidate is not None
+    audit_sections = direct_sections(audit_candidate)
+    assert [
+        node_text(link)
+        for link in audit_sections[
+            "公开联系方式与资料"
+        ].select("a")
+    ] == [
+        "ada@university.example",
+        "个人主页",
+    ]
+    audit_disclosures = direct_disclosures(audit_candidate)
+    contact_points = audit_disclosures[
+        "联系方式溯源"
+    ].select(":scope > .audit-list > .contact-point")
+    assert len(contact_points) == 2
+    contact_labels = [
         "类型",
         "值",
         "来源",
         "来源链接",
         "采集时间",
-        "直接联系",
-        "字段",
-        "候选人 ID",
+        "置信度",
+        "是否直接联系",
         "元数据",
-        "联系表单",
-        "个人主页",
-        "未找到经验证的公开职业联系方式。",
-        "未记录身份匹配理由。",
-        "未记录公开身份依据。",
-        "未记录联系方式溯源。",
-        "未记录来源尝试。",
-        "未记录联系方式证据。",
-        "此来源未返回证据。",
-        "条证据",
-        "未记录。",
-    ):
-        assert expected in visible_text
+    ]
+    assert all(
+        direct_dt_labels(point) == contact_labels
+        for point in contact_points
+    )
+    assert node_text(
+        contact_points[0].select_one(":scope > p.muted")
+    ) == "未记录联系方式证据。"
 
-    for english_copy in (
-        "Author 1",
-        "Identity",
-        "Confidence",
-        "Contact status",
-        "Public contacts and profiles",
-        "Locator-only links",
-        "Identity reasons",
-        "Evidence",
-        "Source attempts",
-        "Contact-point provenance",
-        "Kind",
-        "Value",
-        "Source URL",
-        "Collected at",
-        "Direct",
-        "Field",
-        "Candidate ID",
-        "Metadata",
-        "Contact form",
-        "Homepage",
-        "No verified public professional contact was found.",
-        "No identity reasons recorded.",
-        "No public identity evidence.",
-        "No contact-point provenance recorded.",
-        "No source attempts recorded.",
-        "No contact evidence recorded.",
-        "No evidence returned by this source.",
-        "evidence)",
-        "None recorded.",
-    ):
-        assert english_copy not in visible_text
+    nested_evidence = contact_points[1].select_one(
+        ":scope > .audit-list > .contact-evidence"
+    )
+    assert nested_evidence is not None
+    assert direct_dt_labels(nested_evidence) == evidence_labels
+    nested_fields = {
+        node_text(item.select_one(":scope > dt")): node_text(
+            item.select_one(":scope > dd")
+        )
+        for item in nested_evidence.select(
+            ":scope > .audit-fields > div"
+        )
+    }
+    assert nested_fields["值"] == (
+        "Identity Evidence Value Direct Field Metadata"
+    )
+    assert nested_fields["元数据"] == "note Identity Evidence"
+
+    metadata_field = next(
+        item
+        for item in contact_points[0].select(
+            ":scope > .audit-fields > div"
+        )
+        if node_text(item.select_one(":scope > dt")) == "元数据"
+    )
+    assert node_text(
+        metadata_field.select_one(":scope > dd > .muted")
+    ) == "未记录。"
+
+    audit_source_attempt = audit_disclosures[
+        "来源尝试"
+    ].select_one(
+        ':scope > .audit-list > .source-attempt[data-source="fixture"]'
+    )
+    assert audit_source_attempt is not None
+    assert node_text(
+        audit_source_attempt.select_one(":scope > p > strong")
+    ) == "fixture"
+    assert node_text(
+        audit_source_attempt.select_one(":scope > p")
+    ).endswith("ok （0 条证据）")
+    assert node_text(
+        audit_source_attempt.select_one(":scope > p.muted")
+    ) == "此来源未返回证据。"
+
+    empty_candidate = empty_soup.select_one("#author-1")
+    assert empty_candidate is not None
+    empty_sections = direct_sections(empty_candidate)
+    assert node_text(
+        empty_sections["公开联系方式与资料"].select_one(
+            ":scope > p.muted"
+        )
+    ) == "未找到经验证的公开职业联系方式。"
+    assert node_text(
+        empty_sections["仅用于定位的链接"].select_one(
+            ":scope > p.muted"
+        )
+    ) == "没有可用的定位链接。"
+
+    empty_disclosures = direct_disclosures(empty_candidate)
+    assert node_text(
+        empty_disclosures["联系方式溯源"].select_one(
+            ":scope > p.muted"
+        )
+    ) == "未记录联系方式溯源。"
+    assert node_text(
+        empty_disclosures["身份匹配理由"].select_one(
+            ":scope > p.muted"
+        )
+    ) == "未记录身份匹配理由。"
+    assert node_text(
+        empty_disclosures["证据"].select_one(
+            ":scope > p.muted"
+        )
+    ) == "未记录公开身份依据。"
+    assert node_text(
+        empty_disclosures["来源尝试"].select_one(
+            ":scope > p.muted"
+        )
+    ) == "未记录来源尝试。"
 
 
 def test_html_renders_deterministic_tldr_and_numbered_sections(
