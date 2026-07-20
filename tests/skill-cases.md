@@ -63,7 +63,10 @@ At that earlier iteration, the then-current Skill reused a validated temporary
 environment and requested network only when dependency installation or public
 API access actually needed it.
 
-### Revised-Skill outcome
+### Legacy revised-Skill outcome (pre-HTML)
+
+The following record is historical evidence from before the HTML-only
+contract. It does not satisfy the current forward-case artifact criterion.
 
 At the initial revised forward invocation, the fresh Agent loaded exactly:
 
@@ -95,8 +98,10 @@ The fresh Agent inspected that run and observed:
 
 - Bundled CLI invoked with a platform-neutral command: **PASS**.
 - Every author retained, eight in paper order: **PASS**.
-- Only `report.html` created: **PASS**.
-- Per-author source-attempt sections inspected: **PASS**.
+- The five legacy artifacts were created: `report.md`, `candidates.csv`,
+  `candidates.json`, `evidence.json`, and `run-log.json`: **PASS under the
+  pre-HTML rubric only**.
+- `run-log.json` was inspected: **PASS under the pre-HTML rubric only**.
 - Explicit per-author contact statuses reported: **PASS**.
 - Scholar, LinkedIn, and Maimai kept locator-only: **PASS**.
 
@@ -114,7 +119,7 @@ The statuses were:
 Restricted Scholar, LinkedIn, and Maimai points all had `direct=false`,
 `confidence=0`, and `metadata.mode=locator_only`.
 
-All six criteria passed. Execution/report generation and fresh-Agent
+All six legacy criteria passed. Execution/artifact generation and fresh-Agent
 inspection were split across controller and child processes solely because
 network grants did not propagate to the child sandbox; this was not a
 single-process forward run.
@@ -123,19 +128,20 @@ The root repository remained on the old plan commit throughout this forward
 case. It was only the parent of the output destination above; it was not the
 source of the loaded Skill or executed code.
 
-## Root end-to-end result
+## Legacy root end-to-end result (pre-HTML)
 
-The final forward case was executed from the repository with:
+This historical run used the five-artifact contract. The final legacy forward
+case was executed from the repository with:
 
 ```bash
 RUN_NETWORK_TESTS=1 python -m pytest tests/test_network_e2e.py -m network -v
 ```
 
-It passed against arXiv `1706.03762` and produced only `report.html`. The run
-retained eight authors, field-level evidence, computer-science source routing,
-and locator-only links. The report's source-attempt sections separately
-recorded successful sources, `not_found`, `source_unavailable`, and
-`blocked_by_robots` outcomes.
+It passed against arXiv `1706.03762` and produced `report.md`,
+`candidates.csv`, `candidates.json`, `evidence.json`, and `run-log.json`. The
+run retained eight authors, field-level evidence, computer-science source
+routing, and locator-only links. Its run log separately recorded successful
+sources, `not_found`, `source_unavailable`, and `blocked_by_robots` outcomes.
 
 The live run also exposed two sandbox-specific failure modes now covered by
 regression tests:
@@ -143,3 +149,7 @@ regression tests:
 - An unwritable user cache directory falls back to a temporary cache.
 - A server's excessive `Retry-After` value cannot hold the workflow beyond the
   configured retry budget.
+
+Fresh forward evidence for the current HTML-only success criteria will be
+recorded after Task 3. Until then, the legacy runs above remain useful
+execution evidence but are not claimed as HTML-only validation.

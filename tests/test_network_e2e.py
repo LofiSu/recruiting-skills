@@ -1,4 +1,5 @@
 import os
+import re
 
 import pytest
 
@@ -20,7 +21,21 @@ EXPECTED_AUTHORS = [
 def _assert_real_run_report(report):
     for author in EXPECTED_AUTHORS:
         assert author in report
-    assert "source_unavailable" in report or "blocked_by_robots" in report
+    source_attempt_sections = re.findall(
+        (
+            r"<details><summary>Source attempts</summary>"
+            r"(.*?)</details>"
+        ),
+        report,
+        flags=re.DOTALL,
+    )
+    assert any(
+        re.search(
+            r"</strong>: (?:source_unavailable|blocked_by_robots) \(",
+            section,
+        )
+        for section in source_attempt_sections
+    )
 
 
 def test_real_run_report_validation_rejects_empty_payload():
@@ -29,9 +44,21 @@ def test_real_run_report_validation_rejects_empty_payload():
 
 
 def test_real_run_report_validation_requires_upstream_failure():
-    report = "\n".join(EXPECTED_AUTHORS)
+    report = "\n".join(EXPECTED_AUTHORS) + (
+        '<option value="sources_unavailable">'
+        "sources_unavailable</option>"
+    )
     with pytest.raises(AssertionError):
         _assert_real_run_report(report)
+
+
+def test_real_run_report_validation_accepts_source_attempt_failure():
+    report = "\n".join(EXPECTED_AUTHORS) + (
+        "<details><summary>Source attempts</summary>"
+        "<ul><li><strong>ORCID</strong>: source_unavailable "
+        "(0 evidence)</li></ul></details>"
+    )
+    _assert_real_run_report(report)
 
 
 @pytest.mark.network
