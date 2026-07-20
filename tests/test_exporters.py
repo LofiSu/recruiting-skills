@@ -4,7 +4,11 @@ from dataclasses import replace
 import pytest
 from bs4 import BeautifulSoup
 
-from researcher_recruiting.exporters import _jsonable, write_artifacts
+from researcher_recruiting.exporters import (
+    _jsonable,
+    _safe_href,
+    write_artifacts,
+)
 from researcher_recruiting.models import (
     AuthorSeed,
     ContactKind,
@@ -251,6 +255,85 @@ def test_html_escapes_content_and_omits_unsafe_evidence_url(
     assert "javascript:alert(2)" not in report
     assert "&lt;img src=x onerror=alert(3)&gt;" in report
     assert "Research &lt;Lab&gt;" in report
+
+
+def test_html_publishes_while_omitting_malformed_evidence_urls(
+    tmp_path, run_result, evidence_factory
+):
+    malformed = evidence_factory(
+        field="homepage",
+        value="https://[",
+        url="https://exa mple.test/evidence",
+    )
+    match = replace(
+        run_result.matches[0],
+        evidence=(malformed,),
+        contact_points=(),
+    )
+
+    report = _report(
+        replace(run_result, matches=(match,)),
+        tmp_path,
+    )
+
+    assert "Attention Is All You Need" in report
+    assert "https://[" not in report
+    assert "https://exa mple.test/evidence" not in report
+
+
+def test_html_publishes_while_omitting_malformed_contact_urls(
+    tmp_path, run_result
+):
+    malformed = ContactPoint(
+        kind=ContactKind.HOMEPAGE,
+        value="https://exa mple.test/profile",
+        source="department_directory",
+        source_url="https://example.test:bad/profile",
+        collected_at="2026-07-20T04:05:06Z",
+        confidence=90,
+        direct=False,
+    )
+    match = replace(
+        run_result.matches[0],
+        evidence=(),
+        contact_points=(malformed,),
+    )
+
+    report = _report(
+        replace(run_result, matches=(match,)),
+        tmp_path,
+    )
+
+    assert "Attention Is All You Need" in report
+    assert "https://exa mple.test/profile" not in report
+    assert "https://example.test:bad/profile" not in report
+    assert "department_directory" in report
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "https://[",
+        "https://exa mple.test/path",
+        "https://example.test:bad/path",
+        "https://example.test:99999/path",
+        "https://:443/path",
+        "https://example.test/control\x00path",
+    ),
+)
+def test_safe_href_rejects_malformed_http_urls(value):
+    assert _safe_href(value) is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "https://example.test/path?q=one",
+        "https://例え.テスト/研究者",
+    ),
+)
+def test_safe_href_preserves_valid_https_urls(value):
+    assert _safe_href(value) == value
 
 
 def test_html_omits_non_http_url_values_but_keeps_normal_evidence_text(

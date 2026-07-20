@@ -1,7 +1,9 @@
+import ipaddress
 import os
 import re
 import shutil
 import tempfile
+import unicodedata
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -28,6 +30,9 @@ _BARE_EMAIL = re.compile(
     r"[^@\s<>:/?#\[\]\\\x00-\x1f\x7f]+"
     r"@(?:[^@\s<>:/?#\[\]\\\x00-\x1f\x7f]+\.)+"
     r"[^@\s<>:/?#\[\]\\\x00-\x1f\x7f]+"
+)
+_HOST_LABEL = re.compile(
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
 )
 
 
@@ -236,18 +241,56 @@ def _candidate_records(run: RunResult) -> list[dict[str, Any]]:
 def _safe_href(
     value: str, *, allow_mailto: bool = False
 ) -> str | None:
-    if not value:
+    if not value or any(
+        char.isspace() or unicodedata.category(char) == "Cc"
+        for char in value
+    ):
         return None
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except (UnicodeError, ValueError):
+        return None
     allowed = {"http", "https"}
     if allow_mailto:
         allowed.add("mailto")
     scheme = parsed.scheme.casefold()
     if scheme not in allowed:
         return None
-    if scheme in {"http", "https"} and not parsed.netloc:
-        return None
+    if scheme in {"http", "https"}:
+        try:
+            hostname = parsed.hostname
+            parsed.port
+        except (UnicodeError, ValueError):
+            return None
+        host_and_port = parsed.netloc.rsplit("@", 1)[-1]
+        if (
+            hostname is None
+            or not _is_valid_hostname(hostname)
+            or host_and_port.endswith(":")
+        ):
+            return None
     return value
+
+
+def _is_valid_hostname(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        pass
+    else:
+        return True
+    try:
+        ascii_hostname = value.rstrip(".").encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+    return (
+        bool(ascii_hostname)
+        and len(ascii_hostname) <= 253
+        and all(
+            _HOST_LABEL.fullmatch(label) is not None
+            for label in ascii_hostname.split(".")
+        )
+    )
 
 
 def _text(value: object) -> str:
@@ -289,7 +332,13 @@ def _is_unsafe_evidence_url_value(field: str, value: str) -> bool:
         }
         or normalized_field.endswith(("_link", "_uri", "_url"))
     )
-    if not is_url_field or not urlsplit(value).scheme:
+    if not is_url_field:
+        return False
+    try:
+        has_scheme = bool(urlsplit(value).scheme)
+    except (UnicodeError, ValueError):
+        return True
+    if not has_scheme:
         return False
     return _safe_href(value) is None
 
