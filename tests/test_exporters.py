@@ -143,6 +143,63 @@ def test_html_contains_complete_candidate_and_audit_data(
     assert "fixture" in report
 
 
+def test_html_uses_chinese_article_design_and_original_content(
+    tmp_path, run_result
+):
+    report = _report(run_result, tmp_path)
+    soup = BeautifulSoup(report, "html.parser")
+
+    assert soup.html["lang"] == "zh-CN"
+    assert soup.select_one("article.doc")
+    assert soup.select_one(".doc-header .doc-title").get_text(
+        " ", strip=True
+    ) == "Attention Is All You Need"
+    assert "研究者招聘情报报告" in report
+    assert "Fixture abstract" in report
+    assert "--paper: #f7f7f5" in report
+    assert "--ink: #1a1a1a" in report
+    assert "ui-serif" in report
+    assert "ui-monospace" in report
+
+
+def test_html_renders_deterministic_tldr_and_numbered_sections(
+    tmp_path, run_result
+):
+    soup = BeautifulSoup(_report(run_result, tmp_path), "html.parser")
+    tldr = soup.select_one(".tldr")
+
+    assert tldr is not None
+    assert "共 1 位作者" in tldr.get_text(" ", strip=True)
+    assert "1 位找到公开职业联系方式" in tldr.get_text(
+        " ", strip=True
+    )
+    assert [
+        item.get_text(strip=True)
+        for item in soup.select("h2 > .num")
+    ] == ["01", "02", "03"]
+
+
+def test_html_indexes_every_author_to_a_stable_dossier(
+    tmp_path, duplicate_name_run
+):
+    soup = BeautifulSoup(
+        _report(duplicate_name_run, tmp_path),
+        "html.parser",
+    )
+
+    links = soup.select(".author-index a.author-index-link")
+    dossiers = soup.select(".candidate-card")
+    assert [link["href"] for link in links] == [
+        "#author-1",
+        "#author-2",
+    ]
+    assert [item["id"] for item in dossiers] == [
+        "author-1",
+        "author-2",
+    ]
+    assert all(link.get_text(strip=True) for link in links)
+
+
 def test_html_scopes_duplicate_names_by_author_id(
     tmp_path, duplicate_name_run
 ):

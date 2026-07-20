@@ -604,6 +604,28 @@ def _report_summary(
     }
 
 
+def _render_author_index(
+    candidates: Iterable[dict[str, Any]],
+) -> str:
+    items = []
+    for index, candidate in enumerate(candidates, start=1):
+        order = candidate["author_order"] or index
+        items.append(
+            '<li class="author-index-item" '
+            f'data-contact-status="{_text(candidate["contact_status"])}">'
+            f'<a class="author-index-link" href="#author-{_text(order)}">'
+            f'<span class="author-index-order">{_text(order).zfill(2)}</span>'
+            f'<span class="author-index-name">'
+            f'{_text(candidate["author_name"])}</span>'
+            f'<span class="author-index-status">'
+            f'{_text(candidate["contact_status"])}</span>'
+            f'<span class="author-index-confidence">'
+            f'{_text(candidate["confidence"])}/100</span>'
+            "</a></li>"
+        )
+    return '<ol class="author-index-list">' + "".join(items) + "</ol>"
+
+
 def _report_html(
     run: RunResult,
     candidates: list[dict[str, Any]],
@@ -717,97 +739,198 @@ def _report_html(
 </article>"""
         )
 
-    paper_link = _link("arXiv source", paper["source_url"])
-    paper_metadata = " · ".join(
-        part
-        for part in (
-            _text(paper["arxiv_id"]),
-            _text(", ".join(paper["categories"])),
-            paper_link,
-        )
-        if part
+    summary = _report_summary(candidates, source_attempts)
+    author_index = _render_author_index(candidates)
+    tldr = (
+        f"共 {_text(summary['authors'])} 位作者；"
+        f"{_text(summary['contacts_found'])} 位找到公开职业联系方式；"
+        f"身份确认 {_text(summary['confirmed'])} 位，"
+        f"大概率匹配 {_text(summary['probable'])} 位，"
+        f"存在歧义 {_text(summary['ambiguous'])} 位，"
+        f"未找到 {_text(summary['not_found'])} 位；"
+        f"{_text(summary['unavailable_attempts'])} 次来源访问不可用或受限。"
     )
+    paper_link = _link("arXiv 原文", paper["source_url"])
     return f"""\
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Researcher recruiting report: {_text(paper["title"])}</title>
+  <title>研究者招聘情报报告：{_text(paper["title"])}</title>
   <style>
-    :root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
-    body {{ margin: 0; background: #f4f6f8; color: #17202a; }}
-    main {{ width: min(72rem, calc(100% - 2rem)); margin: 0 auto; padding: 2rem 0; }}
-    .paper-header, .candidate-card, .compliance {{
-      background: white; border: 1px solid #dfe4e8; border-radius: .75rem;
-      box-shadow: 0 .2rem .8rem rgb(0 0 0 / 8%); margin-bottom: 1rem; padding: 1.25rem;
+    :root {{
+      --paper: #f7f7f5;
+      --paper-edge: #efefea;
+      --ink: #1a1a1a;
+      --ink-soft: #4a4a4a;
+      --ink-faint: #7a7a7a;
+      --rule: #d8d8d2;
+      --rule-soft: #e8e8e2;
+      --accent: #a5523d;
+      --accent-soft: #ead9d3;
+      --accent-faint: #f4ece9;
+      --warn: #9a7136;
+      --warn-soft: #f5ecdc;
+    }}
+    body {{
+      margin: 0;
+      padding: 48px 24px 96px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: ui-serif, Charter, Georgia, "Songti SC",
+        "Source Han Serif SC", serif;
+      line-height: 1.6;
+    }}
+    .doc {{ max-width: 1180px; margin: 0 auto; }}
+    .doc-eyebrow, .doc-meta, .tldr-label, .num,
+    .author-index, dt, summary, button, input, select {{
+      font-family: ui-monospace, "SF Mono", Menlo,
+        "PingFang SC", monospace;
+    }}
+    .doc-header {{
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 28px;
+      margin-bottom: 32px;
+    }}
+    .doc-title {{
+      font-size: clamp(28px, 5vw, 46px);
+      line-height: 1.12;
+    }}
+    .doc-meta {{ display: flex; flex-wrap: wrap; gap: 12px 24px; }}
+    .tldr {{
+      background: var(--accent-faint);
+      border-left: 2px solid var(--accent);
+      padding: 20px 24px;
+      margin-bottom: 40px;
+    }}
+    h2 {{ border-bottom: 1px solid var(--rule); padding-bottom: 10px; }}
+    h2 .num {{ color: var(--ink-faint); margin-right: 14px; }}
+    .report-controls {{
+      display: grid;
+      gap: .75rem;
+      grid-template-columns: 2fr 1fr;
+      margin: 1.5rem 0;
+    }}
+    input, select {{
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      padding: .7rem;
+    }}
+    .recruiting-workspace {{
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      gap: 48px;
+      align-items: start;
+    }}
+    .author-index {{ position: sticky; top: 20px; }}
+    .author-index-list {{ list-style: none; margin: 0; padding: 0; }}
+    .author-index-link {{
+      display: grid;
+      grid-template-columns: 2.5em 1fr auto;
+      gap: 6px 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--rule-soft);
+      color: var(--ink);
+      text-decoration: none;
+    }}
+    .author-index-status {{ grid-column: 2; color: var(--ink-faint); }}
+    .author-index-confidence {{ grid-column: 3; color: var(--ink-faint); }}
+    .candidate-card {{
+      scroll-margin-top: 24px;
+      border-top: 1px solid var(--rule);
+      padding: 30px 0 42px;
     }}
     h1, h2, h3 {{ line-height: 1.2; }}
-    .eyebrow, dt {{ color: #59636e; font-size: .8rem; font-weight: 700;
+    .eyebrow, dt {{ color: var(--ink-faint); font-size: .8rem; font-weight: 700;
       letter-spacing: .06em; text-transform: uppercase; }}
-    .controls {{ display: grid; gap: .75rem; grid-template-columns: 2fr 1fr;
-      margin: 1.5rem 0; }}
-    input, select {{ border: 1px solid #aeb8c2; border-radius: .4rem;
-      font: inherit; padding: .7rem; }}
     .facts {{ display: grid; gap: .75rem; grid-template-columns: repeat(3, 1fr); }}
-    .facts div {{ background: #f6f8fa; border-radius: .4rem; padding: .75rem; }}
+    .facts div {{ background: var(--paper-edge); padding: .75rem; }}
     .facts dd {{ margin: .25rem 0 0; }}
     .link-list {{ display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; }}
     .audit-list {{ list-style: none; padding: 0; }}
-    .audit-list > li {{ border-left: .2rem solid #dfe4e8;
+    .audit-list > li {{ border-left: .2rem solid var(--rule);
       margin: .75rem 0; padding-left: .75rem; }}
     .audit-fields {{ display: grid; gap: .5rem; }}
     .audit-fields div {{ display: grid; gap: .25rem;
       grid-template-columns: minmax(8rem, 12rem) 1fr; }}
     .audit-fields dd {{ margin: 0; overflow-wrap: anywhere; }}
-    details {{ border-top: 1px solid #dfe4e8; margin-top: 1rem; padding-top: 1rem; }}
+    details {{ border-top: 1px solid var(--rule); margin-top: 1rem; padding-top: 1rem; }}
     summary {{ cursor: pointer; font-weight: 700; }}
-    .muted {{ color: #59636e; }}
+    .muted {{ color: var(--ink-faint); }}
     [hidden] {{ display: none !important; }}
-    @media (max-width: 40rem) {{
-      .controls, .facts {{ grid-template-columns: 1fr; }}
+    @media (max-width: 760px) {{
+      body {{ padding: 28px 16px 64px; }}
+      .recruiting-workspace {{ grid-template-columns: 1fr; gap: 28px; }}
+      .author-index {{
+        position: static;
+        overflow-x: auto;
+        padding-bottom: 8px;
+      }}
+      .author-index-list {{ display: flex; min-width: max-content; }}
+      .author-index-item {{ width: 220px; margin-right: 18px; }}
+      .report-controls, .facts {{ grid-template-columns: 1fr; }}
       .audit-fields div {{ grid-template-columns: 1fr; }}
-      main {{ width: min(100% - 1rem, 72rem); padding: .5rem 0; }}
-    }}
-    @media (prefers-color-scheme: dark) {{
-      body {{ background: #111820; color: #e9eef3; }}
-      .paper-header, .candidate-card, .compliance {{ background: #18222c; border-color: #34414d; }}
-      .facts div {{ background: #202c37; }}
-      .eyebrow, dt, .muted {{ color: #aeb8c2; }}
     }}
   </style>
 </head>
 <body>
-<main>
-  <header class="paper-header">
-    <p class="eyebrow">Researcher recruiting report</p>
-    <h1>{_text(paper["title"])}</h1>
-    <p>{paper_metadata}</p>
-    <p>{_text(paper["abstract"])}</p>
-    <p class="muted">Generated {_text(generated_at.isoformat())}</p>
-  </header>
-  <section class="controls" aria-label="Candidate filters">
-    <input id="candidate-search" type="search" placeholder="Search candidates"
-           aria-label="Search candidates">
-    <select id="contact-filter" aria-label="Filter by contact status">
-      <option value="">All contact statuses</option>
-      <option value="found">found</option>
-      <option value="not_found">not_found</option>
-      <option value="ambiguous">ambiguous</option>
-      <option value="sources_unavailable">sources_unavailable</option>
-    </select>
-  </section>
-  <section id="candidates" aria-label="Candidates">
-    {''.join(cards)}
-  </section>
-  <section class="compliance">
-    <h2>Compliance and collection boundaries</h2>
-    <p>Only public professional contact information and public identity
-    evidence are included. Google Scholar, ResearchGate, Academia.edu,
-    LinkedIn, Maimai, and unlicensed commercial databases are locator-only.
-    No login, CAPTCHA, paywall, or access-control bypass was attempted.</p>
-  </section>
-</main>
+  <article class="doc">
+    <header class="doc-header">
+      <div class="doc-eyebrow">
+        <span class="mascot"></span>研究者招聘情报报告
+      </div>
+      <h1 class="doc-title">{_text(paper["title"])}</h1>
+      <p class="doc-subtitle">
+        按论文作者顺序整理的公开职业身份、联系路径与来源证据
+      </p>
+      <div class="doc-meta">
+        <span>ARXIV · {_text(paper["arxiv_id"])}</span>
+        <span>分类 · {_text(", ".join(paper["categories"]))}</span>
+        <span>生成时间 · {_text(generated_at.isoformat())}</span>
+        <span>{paper_link}</span>
+      </div>
+    </header>
+    <div class="tldr">
+      <div class="tldr-label">TL;DR</div>
+      <p>{tldr}</p>
+    </div>
+    <section class="paper-context">
+      <h2><span class="num">01</span>论文概览</h2>
+      <p>{_text(paper["abstract"])}</p>
+    </section>
+    <section class="author-section">
+      <h2><span class="num">02</span>作者招聘档案</h2>
+      <div class="report-controls" aria-label="作者筛选">
+        <input id="candidate-search" type="search" placeholder="搜索作者"
+               aria-label="搜索作者">
+        <select id="contact-filter" aria-label="按联系方式状态筛选">
+          <option value="">全部联系方式状态</option>
+          <option value="found">found</option>
+          <option value="not_found">not_found</option>
+          <option value="ambiguous">ambiguous</option>
+          <option value="sources_unavailable">sources_unavailable</option>
+        </select>
+      </div>
+      <div class="recruiting-workspace">
+        <nav class="author-index" aria-label="作者索引">
+          {author_index}
+        </nav>
+        <div class="author-dossiers">{''.join(cards)}</div>
+      </div>
+    </section>
+    <section class="compliance">
+      <h2><span class="num">03</span>合规与采集边界</h2>
+      <p>
+        仅收录公开职业联系方式和公开身份依据。Google Scholar、
+        ResearchGate、Academia.edu、LinkedIn、脉脉及未授权商业数据库
+        仅提供定位链接；未绕过登录、CAPTCHA、付费墙、robots 限制或
+        其他访问控制。
+      </p>
+    </section>
+  </article>
 <script>
 (() => {{
   const search = document.querySelector("#candidate-search");
