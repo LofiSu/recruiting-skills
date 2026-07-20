@@ -99,6 +99,15 @@ def _first_value(items: Iterable[Evidence], field: str) -> str:
     )
 
 
+def _first_evidence_url(
+    items: Iterable[Evidence], field: str
+) -> str:
+    return next(
+        (item.url for item in items if item.field == field),
+        "",
+    )
+
+
 def _first_contact_value(
     points: Iterable[ContactPoint],
     kind: ContactKind,
@@ -192,6 +201,9 @@ def _candidate_records(run: RunResult) -> list[dict[str, Any]]:
                 "confidence": match.confidence,
                 "contact_status": match.contact_status.value,
                 "orcid": _first_value(evidence_items, "orcid"),
+                "orcid_url": _first_evidence_url(
+                    evidence_items, "orcid"
+                ),
                 "email": _first_contact_value(
                     contact_points,
                     ContactKind.PROFESSIONAL_EMAIL,
@@ -317,6 +329,20 @@ def _email_link(value: str) -> str:
 
 
 def _render_best_contact(candidate: dict[str, Any]) -> str:
+    identity_is_qualified = candidate["identity_state"] in {
+        "confirmed",
+        "probable",
+    }
+    if (
+        candidate["contact_status"] != "found"
+        or not identity_is_qualified
+    ):
+        return (
+            '<div class="best-contact best-contact-empty">'
+            '<div class="callout-label">最佳公开联系路径</div>'
+            "<p>未找到经过核验的公开职业联系方式。</p>"
+            "</div>"
+        )
     routes = (
         ("职业邮箱", _email_link(str(candidate["email"]))),
         (
@@ -705,7 +731,7 @@ def _report_html(
                 ("个人主页", "homepage"),
                 ("GitHub", "github"),
                 ("OpenReview", "openreview"),
-                ("ORCID", "orcid"),
+                ("ORCID", "orcid_url"),
             )
             if candidate[field]
         ]
@@ -792,6 +818,11 @@ def _report_html(
         f"{_text(summary['unavailable_attempts'])} 次来源访问不可用或受限。"
     )
     paper_link = _link("arXiv 原文", paper["source_url"])
+    submitted_meta = (
+        f'<span>提交时间 · {_text(paper["submitted_at"])}</span>'
+        if paper["submitted_at"]
+        else ""
+    )
     return f"""\
 <!doctype html>
 <html lang="zh-CN">
@@ -805,7 +836,7 @@ def _report_html(
       --paper-edge: #efefea;
       --ink: #1a1a1a;
       --ink-soft: #4a4a4a;
-      --ink-faint: #7a7a7a;
+      --ink-faint: #626262;
       --rule: #d8d8d2;
       --rule-soft: #e8e8e2;
       --accent: #a5523d;
@@ -946,6 +977,14 @@ def _report_html(
       .report-controls, .facts {{ grid-template-columns: 1fr; }}
       .audit-fields div {{ grid-template-columns: 1fr; }}
     }}
+    @media print {{
+      body {{ background: #fff; color: #000; padding: 0; }}
+      .report-controls, .back-to-top {{ display: none !important; }}
+      .author-index {{ position: static; }}
+      .candidate-card {{ break-inside: avoid; }}
+      details.audit-disclosure > * {{ display: block !important; }}
+      details.audit-disclosure > summary {{ display: none !important; }}
+    }}
   </style>
 </head>
 <body>
@@ -961,6 +1000,7 @@ def _report_html(
       <div class="doc-meta">
         <span>ARXIV · {_text(paper["arxiv_id"])}</span>
         <span>分类 · {_text(", ".join(paper["categories"]))}</span>
+        {submitted_meta}
         <span>生成时间 · {_text(generated_at.isoformat())}</span>
         <span>{paper_link}</span>
       </div>

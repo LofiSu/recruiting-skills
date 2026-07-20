@@ -17,6 +17,7 @@ from researcher_recruiting.models import (
     ContactStatus,
     Evidence,
     IdentityMatch,
+    IdentityState,
     PaperRecord,
     RunResult,
     SourceResult,
@@ -491,6 +492,155 @@ def test_html_prioritizes_verified_email_as_best_contact(
     assert "最佳公开联系路径" in best.get_text(" ", strip=True)
     assert best.select_one(
         'a[href="mailto:ada@university.example"]'
+    )
+
+
+@pytest.mark.parametrize(
+    ("identity_state", "contact_status"),
+    (
+        (IdentityState.AMBIGUOUS, ContactStatus.FOUND),
+        (IdentityState.CONFIRMED, ContactStatus.NOT_FOUND),
+    ),
+)
+def test_html_does_not_promote_unqualified_contact_route(
+    tmp_path, run_result, identity_state, contact_status
+):
+    match = replace(
+        run_result.matches[0],
+        state=identity_state,
+        contact_status=contact_status,
+        contact_points=(
+            ContactPoint(
+                kind=ContactKind.HOMEPAGE,
+                value="https://example.test/apparent-profile",
+                source="fixture",
+                source_url="https://example.test/evidence",
+                collected_at="2026-07-20T03:04:05Z",
+                confidence=80,
+                direct=False,
+            ),
+        ),
+    )
+
+    soup = BeautifulSoup(
+        _report(replace(run_result, matches=(match,)), tmp_path),
+        "html.parser",
+    )
+    best = soup.select_one("#author-1 .best-contact")
+    profiles = soup.select_one(
+        "#author-1 section:nth-of-type(1)"
+    )
+
+    assert best is not None
+    assert "未找到经过核验的公开职业联系方式。" in best.get_text(
+        " ", strip=True
+    )
+    assert best.select_one("a") is None
+    assert profiles is not None
+    assert profiles.select_one(
+        'a[href="https://example.test/apparent-profile"]'
+    )
+
+
+def test_html_renders_original_submission_value_when_present(
+    tmp_path, run_result
+):
+    paper = replace(
+        run_result.paper,
+        submitted_at='2026-07-20 <original> "UTC"',
+    )
+    soup = BeautifulSoup(
+        _report(replace(run_result, paper=paper), tmp_path),
+        "html.parser",
+    )
+
+    metadata = soup.select_one(".doc-meta")
+    assert metadata is not None
+    assert "提交时间 · 2026-07-20 <original> \"UTC\"" in metadata.get_text(
+        " ", strip=True
+    )
+
+
+def test_html_omits_submission_metadata_when_absent(
+    tmp_path, run_result
+):
+    paper = replace(run_result.paper, submitted_at=None)
+    report = _report(replace(run_result, paper=paper), tmp_path)
+
+    assert "提交时间 ·" not in report
+
+
+def test_html_links_bare_orcid_using_evidence_profile_url(
+    tmp_path, run_result
+):
+    orcid = Evidence(
+        source="orcid",
+        field="orcid",
+        value="0000-0001-2345-6789",
+        url="https://orcid.org/0000-0001-2345-6789",
+        collected_at="2026-07-20T03:04:05Z",
+    )
+    match = replace(
+        run_result.matches[0],
+        evidence=(orcid,),
+        contact_points=(),
+    )
+    soup = BeautifulSoup(
+        _report(replace(run_result, matches=(match,)), tmp_path),
+        "html.parser",
+    )
+
+    author = soup.select_one("#author-1")
+    assert author is not None
+    public_profiles = next(
+        section
+        for section in author.find_all("section", recursive=False)
+        if section.h3
+        and section.h3.get_text(" ", strip=True)
+        == "公开联系方式与资料"
+    )
+    profile = public_profiles.select_one(
+        'a[href="https://orcid.org/0000-0001-2345-6789"]'
+    )
+    assert profile is not None
+    assert profile.get_text(" ", strip=True) == "ORCID"
+    evidence_details = author.select_one(
+        'details[data-audit-kind="evidence"]'
+    )
+    assert evidence_details is not None
+    value_label = evidence_details.find("dt", string="值")
+    assert value_label is not None
+    evidence_value = value_label.find_next_sibling("dd")
+    assert evidence_value is not None
+    assert evidence_value.get_text(
+        " ", strip=True
+    ) == "0000-0001-2345-6789"
+
+
+def test_html_uses_accessible_faint_ink_token(tmp_path, run_result):
+    report = _report(run_result, tmp_path)
+
+    assert "--ink-faint: #626262" in report
+
+
+def test_html_prints_all_audit_evidence_without_controls(
+    tmp_path, run_result
+):
+    report = _report(run_result, tmp_path)
+
+    assert "@media print" in report
+    assert (
+        ".report-controls, .back-to-top { display: none !important; }"
+        in report
+    )
+    assert ".author-index { position: static; }" in report
+    assert (
+        "details.audit-disclosure > * { display: block !important; }"
+        in report
+    )
+    assert (
+        "details.audit-disclosure > summary { display: none !important; }"
+        in report
     )
 
 
