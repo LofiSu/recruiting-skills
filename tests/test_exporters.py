@@ -381,6 +381,7 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
         contact_points[0].select_one(":scope > p.muted")
     ) == "未记录联系方式证据。"
 
+    assert node_text(contact_points[1].select_one(":scope > h4")) == "证据"
     nested_evidence = contact_points[1].select_one(
         ":scope > .audit-list > .contact-evidence"
     )
