@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 
 from researcher_recruiting.exporters import (
     _jsonable,
+    _report_summary,
     _safe_href,
     write_artifacts,
 )
@@ -74,6 +75,42 @@ def _report(run, tmp_path):
     return (
         write_artifacts(run, tmp_path) / "report.html"
     ).read_text(encoding="utf-8")
+
+
+def test_report_summary_counts_recruiting_outcomes():
+    candidates = [
+        {
+            "identity_state": "confirmed",
+            "contact_status": "found",
+        },
+        {
+            "identity_state": "ambiguous",
+            "contact_status": "not_found",
+        },
+    ]
+    attempts = [
+        {
+            "source_attempts": [
+                {"status": "ok"},
+                {"status": "source_unavailable"},
+            ]
+        },
+        {
+            "source_attempts": [
+                {"status": "blocked_by_robots"},
+            ]
+        },
+    ]
+
+    assert _report_summary(candidates, attempts) == {
+        "authors": 2,
+        "contacts_found": 1,
+        "confirmed": 1,
+        "probable": 0,
+        "ambiguous": 1,
+        "not_found": 0,
+        "unavailable_attempts": 2,
+    }
 
 
 def test_write_artifacts_creates_only_self_contained_html(

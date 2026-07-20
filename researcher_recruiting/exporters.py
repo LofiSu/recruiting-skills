@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import unicodedata
+from collections import Counter
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -570,6 +571,37 @@ def _source_attempt_records(
         for match, author_order, author_id in scoped_matches
     ]
     return _redact(_jsonable(records))
+
+
+def _report_summary(
+    candidates: list[dict[str, Any]],
+    source_attempts: list[dict[str, object]],
+) -> dict[str, int]:
+    identity_counts = Counter(
+        str(candidate["identity_state"]) for candidate in candidates
+    )
+    unavailable_statuses = {
+        "source_unavailable",
+        "blocked_by_robots",
+    }
+    unavailable_attempts = sum(
+        1
+        for author in source_attempts
+        for attempt in author["source_attempts"]
+        if attempt["status"] in unavailable_statuses
+    )
+    return {
+        "authors": len(candidates),
+        "contacts_found": sum(
+            candidate["contact_status"] == "found"
+            for candidate in candidates
+        ),
+        "confirmed": identity_counts["confirmed"],
+        "probable": identity_counts["probable"],
+        "ambiguous": identity_counts["ambiguous"],
+        "not_found": identity_counts["not_found"],
+        "unavailable_attempts": unavailable_attempts,
+    }
 
 
 def _report_html(
