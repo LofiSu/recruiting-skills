@@ -1,43 +1,35 @@
-# Collection and recruiting boundaries
+# Public researcher-data boundaries
 
 ## Allowed
 
-- Query documented public APIs with their published authentication methods.
-- Fetch public arXiv, institutional, laboratory, personal, and code-profile
-  pages when robots policy permits.
-- Record public professional email addresses, contact forms, homepages, and
-  professional profiles explicitly published by the person or institution.
-- Generate search/locator URLs for restricted or licensed platforms.
-- Cache sanitized public response bodies and retain field-level source URLs and
-  collection times.
-- Report ambiguous candidates, conflicts, missing credentials, rate limits,
-  and robots denials.
+- Read official arXiv pages and public professional webpages.
+- Use the host Agent's ordinary web search and browsing capabilities.
+- Record public professional email addresses, contact forms, homepages,
+  institutional profiles, GitHub, and OpenReview when a public page directly
+  supports the value.
+- Generate search or locator URLs for restricted platforms.
+- State ambiguity, conflicts, missing evidence, time-budget exhaustion, and
+  missing web capabilities.
 
 ## Forbidden
 
-- Logging in to LinkedIn, Maimai, Google Scholar, ResearchGate, Academia.edu,
-  or commercial scholarly products to scrape profiles.
-- Requesting or reusing browser cookies, session tokens, shared accounts, or
-  another person's credentials.
-- Solving or outsourcing CAPTCHAs; rotating fingerprints or proxies to evade
-  anti-bot controls; bypassing robots.txt, paywalls, or access controls.
-- Guessing private email addresses or collecting non-public contact data.
-- Treating identical names, Wikidata alone, ROR, or citation links as confirmed
-  identity.
-- Automatically contacting, ranking out, or making employment decisions about
-  people.
+- Guessing an email address from a name or institutional convention.
+- Collecting private, personal, or non-professional contact information.
+- Logging in to or directly scraping Google Scholar, LinkedIn, Maimai,
+  ResearchGate, Academia.edu, or licensed commercial products.
+- Requesting cookies, session tokens, shared credentials, or CAPTCHA solving.
+- Bypassing robots rules, paywalls, or other access controls.
+- Treating a same-name profile or search snippet as confirmed identity.
+- Ranking candidates, making employment decisions, or sending outreach.
 
-## Decision rule
+## Decision rules
 
-When an official public API or permitted public page is unavailable, record
-`source_unavailable` or `blocked_by_robots` and continue. Never replace that
-lane with a prohibited scraper. Restricted platforms remain locator-only even
-when the user has an account or asks for “deeper crawling.”
+Retain every paper author even when nothing is found. A restricted-platform
+locator is not a verified profile or direct contact.
 
-Retain every paper author. Report one explicit contact status per author:
-`found`, `not_found`, `ambiguous`, or `sources_unavailable`. A locator-only
-link is not a verified direct contact, and an unavailable source is not proof
-that no public contact exists.
+Mark a value `已核验` only when a directly relevant public page supports both
+the person's identity and the field. Use `可能匹配` for unresolved identity
+ambiguity and `暂未找到` when the bounded search returns no usable evidence.
 
-Outputs are research leads requiring human review. Preserve provenance and
-state uncertainty plainly.
+These outputs are research leads for human review. Preserve uncertainty and
+link the evidence used for every non-empty professional field.
