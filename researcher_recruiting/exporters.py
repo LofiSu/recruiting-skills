@@ -259,13 +259,26 @@ def _email_link(value: str) -> str:
     return _link(value, f"mailto:{value}", allow_mailto=True)
 
 
-def _is_unsafe_url_value(value: str) -> bool:
-    return urlsplit(value).scheme.casefold() in {
-        "data",
-        "file",
-        "javascript",
-        "vbscript",
-    }
+def _is_unsafe_evidence_url_value(field: str, value: str) -> bool:
+    normalized_field = field.casefold()
+    is_url_field = (
+        normalized_field
+        in {
+            "contact_form",
+            "email",
+            "github",
+            "homepage",
+            "openreview",
+            "orcid",
+            "profile",
+            "url",
+            "website",
+        }
+        or normalized_field.endswith(("_link", "_uri", "_url"))
+    )
+    if not is_url_field or not urlsplit(value).scheme:
+        return False
+    return _safe_href(value) is None
 
 
 def _list_items(items: Iterable[str], empty: str) -> str:
@@ -407,7 +420,10 @@ def _report_html(
         evidence_items = []
         for item in candidate["evidence"]:
             value = str(item["value"])
-            if _is_unsafe_url_value(value):
+            if _is_unsafe_evidence_url_value(
+                str(item["field"]),
+                value,
+            ):
                 continue
             evidence_link = _link(value, str(item["url"]))
             evidence_value = evidence_link or _text(value)

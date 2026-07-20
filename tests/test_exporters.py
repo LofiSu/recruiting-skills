@@ -137,6 +137,44 @@ def test_html_escapes_content_and_omits_unsafe_evidence_url(
     assert "Research &lt;Lab&gt;" in report
 
 
+def test_html_omits_non_http_url_values_but_keeps_normal_evidence_text(
+    tmp_path, run_result, evidence_factory
+):
+    evidence = (
+        evidence_factory(
+            field="homepage",
+            value="ftp://example.test/profile",
+        ),
+        evidence_factory(
+            field="github",
+            value="mailto:researcher@example.test",
+        ),
+        evidence_factory(
+            field="openreview",
+            value="researcher-profile:ada",
+        ),
+        evidence_factory(
+            field="orcid",
+            value="0000-0001-2345-6789",
+        ),
+    )
+    match = replace(
+        run_result.matches[0],
+        evidence=evidence,
+        contact_points=(),
+    )
+
+    report = _report(
+        replace(run_result, matches=(match,)),
+        tmp_path,
+    )
+
+    assert "ftp://example.test/profile" not in report
+    assert "mailto:researcher@example.test" not in report
+    assert "researcher-profile:ada" not in report
+    assert "0000-0001-2345-6789" in report
+
+
 def test_html_omits_malformed_email_instead_of_making_mailto_link(
     tmp_path, run_result
 ):
