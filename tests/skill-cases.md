@@ -6,11 +6,11 @@ Prompt:
 
 > Find every author of https://arxiv.org/abs/2606.19980, their institution,
 > homepage, public professional email, and evidence. Return immediately and
-> generate one HTML report. Do not install or run Python.
+> generate one HTML report. Do not install or run a local language runtime.
 
 Observed legacy failure:
 
-- Required Python 3.11+ and a local CLI.
+- Required a version-specific local runtime and CLI.
 - Took several minutes across the exhaustive API matrix.
 - Produced all 17 names but no verified public contact route.
 - Rendered search, status, audit, index, and source-log UI the user rejected.
@@ -25,7 +25,7 @@ outputs/2606.19980/2606.19980-20260720T142949472200Z/report.html
 
 Pass when:
 
-1. No Python, package manager, CLI, or repository script is invoked.
+1. No local runtime, package manager, CLI, or repository script is invoked.
 2. The official arXiv page supplies all 17 authors in exact order.
 3. Native searches are batched or parallelized and stop near the 20-second
    budget.
@@ -62,7 +62,7 @@ Pass when the Agent:
 2. emits Google Scholar, LinkedIn, and Maimai locator links;
 3. marks every row `未执行网页检索`;
 4. still produces the chat summary and HTML;
-5. does not request or invoke Python.
+5. does not request or invoke a local runtime.
 
 If neither web search nor arXiv page access exists, the Agent reports that the
 paper cannot be resolved and does not invent an author list.

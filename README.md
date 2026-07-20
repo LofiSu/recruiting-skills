@@ -1,106 +1,73 @@
 # researcher-recruiting-skill
 
-An Agent Skills-standard skill and standalone Python CLI that turns an arXiv
-paper into source-backed researcher recruiting leads, public professional
-contact routes, deterministic identity resolution, and auditable provenance.
+An Agent Skills-standard workflow for quickly finding every author of an arXiv
+paper, their institution, public professional contact routes, and supporting
+evidence.
 
-It uses public APIs and robots-permitted public pages. Google Scholar,
-ResearchGate, Academia.edu, LinkedIn, Maimai, and unlicensed commercial
-indexes remain locator-only.
+The Skill uses the host Agent's native web search and browsing tools. It has no
+local runtime, package installation, API-key, cache, or hosted-service
+requirement.
 
-## Setup
+## What it returns
 
-Requires Python 3.11 or newer. First select and validate `PYTHON_BIN` using
-[the platform-neutral launcher instructions](references/installation.md#select-python).
-Then, from the repository:
+For an arXiv URL, identifier, or exact paper title:
 
-```bash
-"$PYTHON_BIN" --version
-"$PYTHON_BIN" -m pip install .
-```
+- the complete author list in official paper order;
+- best-effort institutions, professional homepages, public work email,
+  GitHub, and OpenReview profiles;
+- a clickable evidence link for every non-empty professional field;
+- explicit `已核验`, `可能匹配`, `暂未找到`, or `未执行网页检索` states;
+- an immediate chat summary;
+- one static report at `outputs/<arxiv-id>/report.html`.
 
-See [installation options](references/installation.md) for development setup,
-the generic Agent Skills location, and optional Claude Code, OpenCode, and
-Codex discovery paths.
-
-Optional environment variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `GITHUB_TOKEN` | Higher GitHub API quota |
-| `SEMANTIC_SCHOLAR_API_KEY` | Semantic Scholar API key |
-| `OPENALEX_API_KEY` | OpenAlex API key |
-| `NCBI_API_KEY` | Higher PubMed quota |
-| `UNPAYWALL_EMAIL` | Required when enriching discovered DOIs |
-| `CROSSREF_MAILTO` | Crossref polite-pool contact |
-| `ORCID_CLIENT_ID`, `ORCID_CLIENT_SECRET` | ORCID public API |
-| `HTTP_PROXY`, `HTTPS_PROXY` | Optional network proxy |
-| `RESEARCHER_RECRUITING_CACHE` | SQLite cache location |
-
-Secrets are not written to reports, evidence, logs, or response-cache keys.
-If a sandbox cannot write the configured or platform-default cache directory,
-the CLI falls back to a cache under the system temporary directory.
-
-## CLI
-
-```bash
-researcher-recruiting 1706.03762 --output results
-researcher-recruiting "Attention Is All You Need" --refresh
-researcher-recruiting 1706.03762 --sources dblp
-```
-
-`--refresh` bypasses cached responses. `--sources` is an explicit override;
-normal field-specific routing comes from arXiv categories.
-
-Every partial or complete run atomically creates one self-contained file in a
-timestamped run directory:
-
-- `report.html`
-
-Open `report.html` and inspect each author's source-attempt section to
-distinguish `not_found`, `source_unavailable`, and `blocked_by_robots`.
-Rate-limited sources are retried within a bounded delay; an excessive server
-`Retry-After` value is recorded as unavailable instead of holding the entire
-run.
-
-## Source matrix
-
-- Cross-disciplinary: OpenAlex, Crossref, Semantic Scholar, ORCID, DataCite,
-  ROR, Wikidata, GitHub, OpenReview.
-- Computer science and engineering: DBLP for `cs.*`, `stat.ML`, and `eess.*`.
-- Biomedicine: PubMed and Europe PMC for `q-bio.*`.
-- High-energy and nuclear physics: INSPIRE for `hep-*` and `nucl-*`.
-- DOI enrichment: OpenCitations and Unpaywall.
-- Locator-only: Google Scholar, ResearchGate, Academia.edu, LinkedIn, Maimai,
-  Scopus, Web of Science, Dimensions, Lens, NASA ADS, IEEE Xplore, and
-  Springer Nature unless a licensed official adapter is configured.
-
-See [source behavior](references/sources.md) and
-[compliance boundaries](references/compliance.md).
+The native enrichment phase targets approximately 20 seconds. It returns
+partial results at the time budget instead of waiting for an exhaustive source
+matrix.
 
 ## Install as an Agent Skill
 
-Clone or symlink the same repository into one of the documented discovery
-locations, refresh the agent's skill discovery, then invoke:
+Clone or symlink this repository into a supported Agent Skills discovery
+directory, then refresh that Agent's Skill discovery.
+
+| Scope | Location |
+| --- | --- |
+| Generic shared | `~/.agents/skills/researcher-recruiting-skill/` |
+| Claude Code personal | `~/.claude/skills/researcher-recruiting-skill/` |
+| Claude Code project | `.claude/skills/researcher-recruiting-skill/` |
+| OpenCode personal | `~/.config/opencode/skills/researcher-recruiting-skill/` |
+| OpenCode project | `.opencode/skills/researcher-recruiting-skill/` |
+| Codex personal | `${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill/` |
+
+There is nothing else to install.
+
+## Use
+
+Send the paper directly:
 
 ```text
-Use $researcher-recruiting-skill on arXiv:1706.03762.
+Use $researcher-recruiting-skill on
+https://arxiv.org/abs/2606.19980 and find every author's institution,
+homepage, public professional email, and evidence.
 ```
 
-The optional `agents/openai.yaml` provides OpenAI UI metadata only; the
-standard `SKILL.md`, bundled references, scripts, and CLI remain
-platform-neutral.
+The Skill opens arXiv, batches author searches using the Agent's own web tools,
+returns the chat table, and creates the compact HTML report.
 
-## Verification
+## Host without web search
 
-Fixture tests are network-free:
+When an Agent cannot search the web, the Skill still preserves the official
+arXiv author list when page access exists, generates Google Scholar, LinkedIn,
+and Maimai locator URLs, marks rows `未执行网页检索`, and creates the chat and
+HTML outputs.
 
-```bash
-"$PYTHON_BIN" -m pytest -m "not network"
-```
+It does not substitute a local crawler.
 
-Run the opt-in public-network smoke test only when the environment permits:
+## Data boundaries
 
-```bash
-RUN_NETWORK_TESTS=1 "$PYTHON_BIN" -m pytest tests/test_network_e2e.py -m network
-```
+Only public professional information is collected. Email addresses are never
+guessed. Google Scholar, LinkedIn, Maimai, ResearchGate, and Academia.edu are
+locator-only: the Skill may link to indexed results but does not log in to or
+directly scrape those platforms.
+
+The output is a research lead for human review, not a candidate ranking,
+employment decision, or outreach action.
