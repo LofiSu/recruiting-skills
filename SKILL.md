@@ -14,13 +14,14 @@ record rather than replacing it with ad hoc searches.
 1. Read [references/compliance.md](references/compliance.md) before collecting
    data. Read [references/sources.md](references/sources.md) when selecting,
    explaining, or troubleshooting sources.
-2. Use Python 3.11 or newer and install the package dependencies. Follow
-   [references/installation.md](references/installation.md) for generic,
-   standalone, and optional agent discovery installation paths.
+2. Follow [references/installation.md](references/installation.md) to accept
+   or discover `PYTHON_BIN`, verify Python 3.11 or newer, and install package
+   dependencies with that exact executable. The reference also documents
+   generic, standalone, and optional agent discovery installation paths.
 3. From the skill directory, run:
 
    ```bash
-   python scripts/researcher_recruiting.py "<paper>" --output results
+   "$PYTHON_BIN" scripts/researcher_recruiting.py "<paper>" --output results
    ```
 
 4. Add `--refresh` only when fresh data is explicitly requested. Let arXiv

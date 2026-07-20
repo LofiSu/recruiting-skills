@@ -3,27 +3,59 @@
 The repository follows the [Agent Skills open standard](https://agentskills.io/)
 and uses one platform-neutral `SKILL.md`. Use Python 3.11 or newer.
 
-## Install dependencies
+## Select Python
 
-From the skill directory, install the package into the selected Python
-environment:
+Honor a user-supplied `PYTHON_BIN`. Otherwise, discover a launcher in
+descending preferred order and verify that it runs Python 3.11 or newer:
 
 ```bash
-python --version
-python -m pip install .
+if [ -z "${PYTHON_BIN:-}" ]; then
+  for candidate in python3.12 python3.11 python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PYTHON_BIN=$(command -v "$candidate")
+      break
+    fi
+  done
+fi
+
+if [ -z "${PYTHON_BIN:-}" ]; then
+  printf '%s\n' 'Python 3.11 or newer is required.' >&2
+  exit 1
+fi
+
+if ! "$PYTHON_BIN" -c \
+  'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'
+then
+  printf '%s\n' "$PYTHON_BIN must run Python 3.11 or newer." >&2
+  exit 1
+fi
+
+export PYTHON_BIN
+```
+
+To override discovery, set `PYTHON_BIN` to a Python executable before running
+the block, for example `PYTHON_BIN=/path/to/python3.11`.
+
+## Install dependencies
+
+From the skill directory, use the selected executable for installation:
+
+```bash
+"$PYTHON_BIN" --version
+"$PYTHON_BIN" -m pip install .
 ```
 
 For development and verification, install the `dev` extra:
 
 ```bash
-python -m pip install -e '.[dev]'
+"$PYTHON_BIN" -m pip install -e '.[dev]'
 ```
 
-After installing dependencies, the core skill runs the bundled script from
-this directory:
+After installing dependencies, use that same executable to run the bundled
+script from this directory:
 
 ```bash
-python scripts/researcher_recruiting.py "<paper>" --output results
+"$PYTHON_BIN" scripts/researcher_recruiting.py "<paper>" --output results
 ```
 
 ## Agent discovery locations
@@ -49,6 +81,6 @@ Agent skill discovery is optional. Install from the repository and invoke the
 console command directly:
 
 ```bash
-python -m pip install .
+"$PYTHON_BIN" -m pip install .
 researcher-recruiting <paper> --output results
 ```

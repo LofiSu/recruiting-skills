@@ -10,11 +10,13 @@ indexes remain locator-only.
 
 ## Setup
 
-Requires Python 3.11 or newer. From the repository:
+Requires Python 3.11 or newer. First select and validate `PYTHON_BIN` using
+[the platform-neutral launcher instructions](references/installation.md#select-python).
+Then, from the repository:
 
 ```bash
-python --version
-python -m pip install .
+"$PYTHON_BIN" --version
+"$PYTHON_BIN" -m pip install .
 ```
 
 See [installation options](references/installation.md) for development setup,
@@ -96,11 +98,11 @@ platform-neutral.
 Fixture tests are network-free:
 
 ```bash
-python -m pytest -m "not network"
+"$PYTHON_BIN" -m pytest -m "not network"
 ```
 
 Run the opt-in public-network smoke test only when the environment permits:
 
 ```bash
-RUN_NETWORK_TESTS=1 python -m pytest tests/test_network_e2e.py -m network
+RUN_NETWORK_TESTS=1 "$PYTHON_BIN" -m pytest tests/test_network_e2e.py -m network
 ```
