@@ -69,7 +69,15 @@ def test_skill_uses_relative_bundled_paths():
     text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert "scripts/researcher_recruiting.py" in text
     assert "references/installation.md" in text
-    assert "run-log.json" in text
+    assert "report.html" in text
+    retired_artifacts = (
+        "report.md",
+        "candidates.csv",
+        "candidates.json",
+        "evidence.json",
+        "run-log.json",
+    )
+    assert not any(name in text for name in retired_artifacts)
 
 
 def test_required_commands_reuse_selected_python_launcher():

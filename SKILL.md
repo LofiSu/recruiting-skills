@@ -6,7 +6,7 @@ description: Use when researching every author of an arXiv paper for recruiting,
 # Researcher Recruiting
 
 Turn an arXiv URL, identifier, or exact title into reproducible,
-evidence-backed recruiting artifacts. Use the bundled CLI as the source of
+evidence-backed recruiting reports. Use the bundled CLI as the source of
 record rather than replacing it with ad hoc searches.
 
 ## Required workflow
@@ -27,27 +27,22 @@ record rather than replacing it with ad hoc searches.
 4. Add `--refresh` only when fresh data is explicitly requested. Let arXiv
    categories select field-specific indexes; add `--sources name,name` only
    for an explicit source override.
-5. Inspect the generated `run-log.json` before interpreting any blank field or
-   missing contact. Distinguish `not_found`, `source_unavailable`, and
-   `blocked_by_robots`.
+5. Open `report.html` and inspect each author's source-attempt section before
+   interpreting a blank field or missing contact. Distinguish `not_found`,
+   `source_unavailable`, and `blocked_by_robots`.
 6. Retain every paper author, including authors with ambiguous identities,
    missing contacts, or unavailable sources. Report each author's explicit
    `contact_status`: `found`, `not_found`, `ambiguous`, or
    `sources_unavailable`.
 7. Review identity evidence and never upgrade a match based on name alone.
-8. Present `report.md` and `candidates.csv`, mention the run directory, and
-   summarize unavailable sources. Preserve all machine-readable artifacts for
-   audit and reuse.
+8. Present `report.html`, mention the run directory, and summarize unavailable
+   sources.
 
 ## Artifact contract
 
-Every successful or partial run produces:
+Every successful or partial run creates one self-contained file:
 
-- `report.md`
-- `candidates.csv`
-- `candidates.json`
-- `evidence.json`
-- `run-log.json`
+- `report.html`
 
 Keep `recruiting_notes` blank unless an assessment is requested. Do not send
 outreach or mutate external profiles.

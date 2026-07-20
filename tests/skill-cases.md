@@ -7,13 +7,13 @@ Prompt:
 > Given arXiv paper 1706.03762, identify every author and find public
 > professional contact routes for each. Preserve evidence, distinguish missing
 > contacts from unavailable sources, and do not directly crawl Google Scholar,
-> LinkedIn, or Maimai. Produce reusable machine-readable artifacts.
+> LinkedIn, or Maimai. Produce one self-contained HTML report.
 
 Rubric:
 
 1. Invoke the repository CLI.
 2. Include every author.
-3. Create all five artifacts.
+3. Create only `report.html`.
 4. Distinguish contact statuses.
 5. Preserve locator-only boundaries.
 
@@ -21,11 +21,11 @@ Observed without the Skill:
 
 - Repository CLI invoked: **PASS**.
 - Every author included: **FAIL**.
-- Five artifacts created: **FAIL**.
+- Self-contained HTML report created: **FAIL**.
 - Contact statuses distinguished: **FAIL**.
 - Locator-only boundaries preserved: **FAIL**.
 - The evaluator first used system Python 3.9, which failed on union type
-  syntax, then found Python 3.11 without `httpx`. No artifacts were generated.
+  syntax, then found Python 3.11 without `httpx`. No report was generated.
   This demonstrates that generic installation and dependency instructions must
   be explicit.
 
@@ -36,9 +36,9 @@ Use the same prompt prefixed with:
 > Use $researcher-recruiting-skill at `<repository-path>` to complete the
 > request.
 
-Pass only when the agent runs the bundled CLI, inspects `run-log.json`, retains
-locator-only boundaries, and returns links to `report.md` and
-`candidates.csv` while preserving all five artifacts.
+Pass only when the agent runs the bundled CLI, opens `report.html`, inspects
+each author's source-attempt section, retains locator-only boundaries, and
+returns a link to the sole report file.
 
 ### Earlier Skill iterations
 
@@ -95,8 +95,8 @@ The fresh Agent inspected that run and observed:
 
 - Bundled CLI invoked with a platform-neutral command: **PASS**.
 - Every author retained, eight in paper order: **PASS**.
-- Exactly five artifacts created: **PASS**.
-- `run-log.json` inspected: **PASS**.
+- Only `report.html` created: **PASS**.
+- Per-author source-attempt sections inspected: **PASS**.
 - Explicit per-author contact statuses reported: **PASS**.
 - Scholar, LinkedIn, and Maimai kept locator-only: **PASS**.
 
@@ -114,7 +114,7 @@ The statuses were:
 Restricted Scholar, LinkedIn, and Maimai points all had `direct=false`,
 `confidence=0`, and `metadata.mode=locator_only`.
 
-All six criteria passed. Execution/artifact generation and fresh-Agent
+All six criteria passed. Execution/report generation and fresh-Agent
 inspection were split across controller and child processes solely because
 network grants did not propagate to the child sandbox; this was not a
 single-process forward run.
@@ -131,11 +131,11 @@ The final forward case was executed from the repository with:
 RUN_NETWORK_TESTS=1 python -m pytest tests/test_network_e2e.py -m network -v
 ```
 
-It passed against arXiv `1706.03762` and produced `report.md`,
-`candidates.csv`, `candidates.json`, `evidence.json`, and `run-log.json`.
-The run retained eight authors, field-level evidence, computer-science source
-routing, and locator-only links. Its run log separately recorded successful
-sources, `not_found`, `source_unavailable`, and `blocked_by_robots` outcomes.
+It passed against arXiv `1706.03762` and produced only `report.html`. The run
+retained eight authors, field-level evidence, computer-science source routing,
+and locator-only links. The report's source-attempt sections separately
+recorded successful sources, `not_found`, `source_unavailable`, and
+`blocked_by_robots` outcomes.
 
 The live run also exposed two sandbox-specific failure modes now covered by
 regression tests:

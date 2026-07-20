@@ -104,7 +104,7 @@ def _parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=Path("results"),
-        help="artifact output root (default: ./results)",
+        help="report output root (default: ./results)",
     )
     parser.add_argument(
         "--refresh",
@@ -161,13 +161,13 @@ async def run_cli(argv: Sequence[str]) -> int:
         run_directory = write_artifacts(result, args.output)
     except OSError as error:
         print(
-            f"Could not write artifacts: {type(error).__name__}",
+            f"Could not write report: {type(error).__name__}",
             file=sys.stderr,
         )
         return 3
     except Exception as error:
         print(
-            f"Artifact invariant failure: {type(error).__name__}",
+            f"Report invariant failure: {type(error).__name__}",
             file=sys.stderr,
         )
         return 4

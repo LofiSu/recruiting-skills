@@ -64,6 +64,8 @@ script from this directory:
 "$PYTHON_BIN" scripts/researcher_recruiting.py "<paper>" --output results
 ```
 
+The timestamped run directory contains only `report.html`.
+
 ## Agent discovery locations
 
 Clone or symlink this repository into any supported discovery location:

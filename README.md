@@ -52,18 +52,16 @@ researcher-recruiting 1706.03762 --sources dblp
 `--refresh` bypasses cached responses. `--sources` is an explicit override;
 normal field-specific routing comes from arXiv categories.
 
-Every partial or complete run atomically creates:
+Every partial or complete run atomically creates one self-contained file in a
+timestamped run directory:
 
-- `report.md`
-- `candidates.csv`
-- `candidates.json`
-- `evidence.json`
-- `run-log.json`
+- `report.html`
 
-Inspect `run-log.json` to distinguish `not_found`, `source_unavailable`, and
-`blocked_by_robots`. Rate-limited sources are retried within a bounded delay;
-an excessive server `Retry-After` value is recorded as unavailable instead of
-holding the entire run.
+Open `report.html` and inspect each author's source-attempt section to
+distinguish `not_found`, `source_unavailable`, and `blocked_by_robots`.
+Rate-limited sources are retried within a bounded delay; an excessive server
+`Retry-After` value is recorded as unavailable instead of holding the entire
+run.
 
 ## Source matrix
 

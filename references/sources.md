@@ -68,5 +68,5 @@ locator-only. The CLI generates search URLs but never requests those pages.
 | `source_unavailable` | Credential, quota, transport, parser, or upstream failure prevented a result. |
 | `blocked_by_robots` | The shared crawler refused the requested public page. |
 
-An unavailable source never becomes `not_found`. Partial failures still produce
-all five artifacts.
+An unavailable source never becomes `not_found`. Partial failures still
+produce the complete HTML report.

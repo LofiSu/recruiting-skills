@@ -404,12 +404,10 @@ async def test_pipeline_starts_author_with_explicit_paper_email_evidence(
         if point.kind is ContactKind.PROFESSIONAL_EMAIL
     )
     assert contact.direct is True
-    candidates = json.loads(
-        (
-            write_artifacts(result, tmp_path) / "candidates.json"
-        ).read_text(encoding="utf-8")
+    report = (write_artifacts(result, tmp_path) / "report.html").read_text(
+        encoding="utf-8",
     )
-    assert candidates[0]["email"] == "ada@university.example"
+    assert "ada@university.example" in report
 
 
 @pytest.mark.parametrize(
