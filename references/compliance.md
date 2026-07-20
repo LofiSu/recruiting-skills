@@ -7,6 +7,9 @@
 - Record public professional email addresses, contact forms, homepages,
   institutional profiles, GitHub, and OpenReview when a public page directly
   supports the value.
+- Open ordinary public search results for Google Scholar, LinkedIn, Maimai,
+  ResearchGate, or Academia.edu when they are accessible without logging in or
+  bypassing controls.
 - Generate search or locator URLs for restricted platforms.
 - State ambiguity, conflicts, missing evidence, time-budget exhaustion, and
   missing web capabilities.
@@ -15,8 +18,8 @@
 
 - Guessing an email address from a name or institutional convention.
 - Collecting private, personal, or non-professional contact information.
-- Logging in to or directly scraping Google Scholar, LinkedIn, Maimai,
-  ResearchGate, Academia.edu, or licensed commercial products.
+- Logging in to, batch scraping, or bypassing access controls on Google Scholar,
+  LinkedIn, Maimai, ResearchGate, Academia.edu, or licensed commercial products.
 - Requesting cookies, session tokens, shared credentials, or CAPTCHA solving.
 - Bypassing robots rules, paywalls, or other access controls.
 - Treating a same-name profile or search snippet as confirmed identity.
@@ -25,7 +28,7 @@
 ## Decision rules
 
 Retain every paper author even when nothing is found. A restricted-platform
-locator is not a verified profile or direct contact.
+locator or search snippet is not a verified profile or direct contact.
 
 Mark a value `已核验` only when a directly relevant public page supports both
 the person's identity and the field. Use `可能匹配` for unresolved identity

@@ -34,7 +34,8 @@ Pass when:
    ordered authors.
 6. The HTML has no JavaScript or interactive audit or filter controls.
 7. The HTML uses the embedded article document shell, TL;DR, numbered sections,
-   summary cards, responsive author rows, and inline CSS without external assets.
+   detailed paper overview, responsive author rows, and inline CSS without
+   external assets.
 
 Expected author order:
 

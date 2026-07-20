@@ -165,7 +165,6 @@
 
       .tldr-label,
       .callout-label,
-      .card-icon,
       footer h4 {
         font-family:
           ui-monospace, Menlo, "PingFang SC",
@@ -220,47 +219,6 @@
         max-width: 820px;
         color: var(--ink-soft);
         font-size: 14px;
-      }
-
-      /* ─── Summary cards ─── */
-      .cards {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
-        margin: 22px 0 18px;
-      }
-
-      .card {
-        min-height: 128px;
-        padding: 17px 17px 15px;
-        border: 1px solid var(--rule);
-        background: #fff;
-      }
-
-      .card-icon {
-        margin-bottom: 8px;
-        color: var(--accent);
-      }
-
-      .card:nth-child(2) .card-icon {
-        color: var(--warn);
-      }
-
-      .card:nth-child(3) .card-icon {
-        color: var(--verified);
-      }
-
-      .card-name {
-        margin-bottom: 6px;
-        font-size: 24px;
-        font-weight: 600;
-        line-height: 1.2;
-      }
-
-      .card-desc {
-        color: var(--ink-soft);
-        font-size: 13px;
-        line-height: 1.5;
       }
 
       /* ─── Author table ─── */
@@ -432,14 +390,6 @@
           font-size: clamp(29px, 9vw, 42px);
         }
 
-        .cards {
-          grid-template-columns: 1fr;
-        }
-
-        .card {
-          min-height: 0;
-        }
-
         .table-wrap {
           overflow: visible;
           border-top: 0;
@@ -553,7 +503,6 @@
         }
 
         .author-row,
-        .card,
         .callout {
           break-inside: avoid;
         }
@@ -585,9 +534,6 @@
         <h2 id="overview-heading"><span class="num">01</span>论文概览</h2>
         <div class="section-intro">
           {{OVERVIEW_BODY}}
-        </div>
-        <div class="cards" aria-label="报告摘要">
-          {{SUMMARY_CARDS}}
         </div>
       </section>
 

@@ -105,9 +105,11 @@ It does not substitute a local crawler.
 ## Data boundaries
 
 Only public professional information is collected. Email addresses are never
-guessed. Google Scholar, LinkedIn, Maimai, ResearchGate, and Academia.edu are
-locator-only: the Skill may link to indexed results but does not log in to or
-directly scrape those platforms.
+guessed. Google Scholar, LinkedIn, Maimai, ResearchGate, and Academia.edu may be
+opened through ordinary public search results when the host Agent can access
+them, but the Skill does not log in, bypass access controls, solve CAPTCHAs, or
+run batch scrapers against those platforms. Search snippets are discovery aids,
+not verified evidence by themselves.
 
 The output is a research lead for human review, not a candidate ranking,
 employment decision, or outreach action.

@@ -41,10 +41,16 @@ result for each author, verify it directly when time permits, and stop once one
 authoritative public route is established. Preserve unresolved authors instead
 of spending the whole budget on them.
 
-## Locator URLs
+## Restricted-platform search
 
-When direct evidence is unavailable, generate these safe locators without
-opening or scraping the restricted destination:
+Google Scholar, LinkedIn, Maimai, ResearchGate, and Academia.edu may appear in
+ordinary search results, and the host Agent may open pages that are public
+without login. Treat them as regular evidence only when the page itself is
+accessible, relevant, and supports the author's identity. Do not log in, solve
+CAPTCHAs, bypass access controls, or run batch scrapers.
+
+When direct public evidence is unavailable, generate safe locator URLs instead
+of opening or scraping the restricted destination:
 
 - Google Scholar:
   `https://scholar.google.com/scholar?q=<url-encoded-author>`

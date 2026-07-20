@@ -90,7 +90,6 @@ content:
 - `{{PAPER_META}}`
 - `{{TLDR_BODY}}`
 - `{{OVERVIEW_BODY}}`
-- `{{SUMMARY_CARDS}}`
 - `{{AUTHOR_ROWS}}`
 - `{{LIMITATIONS_BODY}}`
 - `{{REFERENCE_ITEMS}}`
@@ -100,7 +99,8 @@ Use the embedded structures exactly:
 - `.doc`, `.doc-header`, `.doc-eyebrow`, `.doc-title`, and `.doc-meta`;
 - the top `.tldr` result summary;
 - numbered sections `01` 论文概览, `02` 作者与公开联系路径, and `03` 证据与边界;
-- three `.card` summary items;
+- a detailed `01` 论文概览 that explains the paper problem, method shape,
+  evaluation setting, and why these authors are relevant recruiting leads;
 - one `.author-row` for every author, in exact arXiv order;
 - direct source links in `.contact-list`, `.evidence-list`, and the References footer.
 
