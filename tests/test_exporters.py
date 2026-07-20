@@ -139,7 +139,7 @@ def test_html_contains_complete_candidate_and_audit_data(
     assert "LinkedIn" in report
     assert "Maimai" in report
     assert "证据" in report
-    assert "来源尝试" in report
+    assert "各数据源尝试记录" in report
     assert "fixture" in report
 
 
@@ -309,8 +309,8 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
     assert list(disclosures) == [
         "联系方式溯源",
         "身份匹配理由",
-        "证据",
-        "来源尝试",
+        "完整身份与联系证据",
+        "各数据源尝试记录",
     ]
     assert "contact-provenance" in disclosures[
         "联系方式溯源"
@@ -321,7 +321,7 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
         )
     ) == "paper overlap"
 
-    evidence_item = disclosures["证据"].select_one(
+    evidence_item = disclosures["完整身份与联系证据"].select_one(
         ":scope > .audit-list > .evidence-item"
     )
     assert evidence_item is not None
@@ -336,7 +336,7 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
     ]
     assert direct_dt_labels(evidence_item) == evidence_labels
 
-    source_attempt = disclosures["来源尝试"].select_one(
+    source_attempt = disclosures["各数据源尝试记录"].select_one(
         ':scope > .audit-list > .source-attempt[data-source="fixture"]'
     )
     assert source_attempt is not None
@@ -412,7 +412,7 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
     ) == "未记录。"
 
     audit_source_attempt = audit_disclosures[
-        "来源尝试"
+        "各数据源尝试记录"
     ].select_one(
         ':scope > .audit-list > .source-attempt[data-source="fixture"]'
     )
@@ -453,12 +453,12 @@ def test_html_localizes_all_static_dossier_and_audit_copy(
         )
     ) == "未记录身份匹配理由。"
     assert node_text(
-        empty_disclosures["证据"].select_one(
+        empty_disclosures["完整身份与联系证据"].select_one(
             ":scope > p.muted"
         )
     ) == "未记录公开身份依据。"
     assert node_text(
-        empty_disclosures["来源尝试"].select_one(
+        empty_disclosures["各数据源尝试记录"].select_one(
             ":scope > p.muted"
         )
     ) == "未记录来源尝试。"
@@ -479,6 +479,49 @@ def test_html_renders_deterministic_tldr_and_numbered_sections(
         item.get_text(strip=True)
         for item in soup.select("h2 > .num")
     ] == ["01", "02", "03"]
+
+
+def test_html_prioritizes_verified_email_as_best_contact(
+    tmp_path, run_result
+):
+    soup = BeautifulSoup(_report(run_result, tmp_path), "html.parser")
+    best = soup.select_one("#author-1 .best-contact")
+
+    assert best is not None
+    assert "最佳公开联系路径" in best.get_text(" ", strip=True)
+    assert best.select_one(
+        'a[href="mailto:ada@university.example"]'
+    )
+
+
+def test_html_keeps_audit_details_closed_by_default(
+    tmp_path, run_result
+):
+    soup = BeautifulSoup(_report(run_result, tmp_path), "html.parser")
+    audits = soup.select("#author-1 details.audit-disclosure")
+
+    assert len(audits) == 3
+    assert all(not item.has_attr("open") for item in audits)
+    assert {item["data-audit-kind"] for item in audits} == {
+        "contact-provenance",
+        "evidence",
+        "source-attempts",
+    }
+
+
+def test_html_includes_recruiting_filters_and_enhancement_controls(
+    tmp_path, run_result
+):
+    report = _report(run_result, tmp_path)
+    soup = BeautifulSoup(report, "html.parser")
+
+    assert soup.select_one("#candidate-search")
+    assert soup.select_one("#contact-filter")
+    assert soup.select_one("#audit-toggle")
+    assert soup.select_one("#back-to-top")
+    assert "IntersectionObserver" in report
+    assert "audit-disclosure" in report
+    assert "@media (max-width: 760px)" in report
 
 
 def test_html_indexes_every_author_to_a_stable_dossier(

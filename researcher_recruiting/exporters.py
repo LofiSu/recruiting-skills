@@ -316,6 +316,40 @@ def _email_link(value: str) -> str:
     return _link(value, f"mailto:{value}", allow_mailto=True)
 
 
+def _render_best_contact(candidate: dict[str, Any]) -> str:
+    routes = (
+        ("职业邮箱", _email_link(str(candidate["email"]))),
+        (
+            "联系表单",
+            _link("打开联系表单", str(candidate["contact_form"])),
+        ),
+        ("个人主页", _link("打开个人主页", str(candidate["homepage"]))),
+        ("GitHub", _link("打开 GitHub", str(candidate["github"]))),
+        (
+            "OpenReview",
+            _link("打开 OpenReview", str(candidate["openreview"])),
+        ),
+    )
+    selected = next(
+        ((label, rendered) for label, rendered in routes if rendered),
+        None,
+    )
+    if selected is None:
+        return (
+            '<div class="best-contact best-contact-empty">'
+            '<div class="callout-label">最佳公开联系路径</div>'
+            "<p>未找到经过核验的公开职业联系方式。</p>"
+            "</div>"
+        )
+    label, rendered = selected
+    return (
+        '<div class="best-contact">'
+        '<div class="callout-label">最佳公开联系路径</div>'
+        f"<p><strong>{_text(label)}</strong> · {rendered}</p>"
+        "</div>"
+    )
+
+
 def _is_unsafe_evidence_url_value(field: str, value: str) -> bool:
     normalized_field = field.casefold()
     is_url_field = (
@@ -486,7 +520,8 @@ def _render_contact_provenance(
         else '<p class="muted">未记录联系方式溯源。</p>'
     )
     return (
-        '<details class="contact-provenance">'
+        '<details class="contact-provenance audit-disclosure" '
+        'data-audit-kind="contact-provenance">'
         f"<summary>联系方式溯源</summary>{content}</details>"
     )
 
@@ -704,6 +739,7 @@ def _report_html(
             "未记录身份匹配理由。",
         )
 
+        best_contact_html = _render_best_contact(candidate)
         evidence_html = _render_evidence_list(
             candidate["evidence"],
         )
@@ -730,12 +766,17 @@ def _report_html(
     <div><dt>置信度</dt><dd>{_text(candidate['confidence'])}/100</dd></div>
     <div><dt>联系状态</dt><dd>{_text(candidate['contact_status'])}</dd></div>
   </dl>
+  {best_contact_html}
   <section><h3>公开联系方式与资料</h3>{contact_html}</section>
   <section><h3>仅用于定位的链接</h3>{locator_html}</section>
   {contact_provenance_html}
   <details><summary>身份匹配理由</summary>{reason_html}</details>
-  <details><summary>证据</summary>{evidence_html}</details>
-  <details><summary>来源尝试</summary>{attempts_html}</details>
+  <details class="audit-disclosure" data-audit-kind="evidence">
+    <summary>完整身份与联系证据</summary>{evidence_html}
+  </details>
+  <details class="audit-disclosure" data-audit-kind="source-attempts">
+    <summary>各数据源尝试记录</summary>{attempts_html}
+  </details>
 </article>"""
         )
 
@@ -810,15 +851,17 @@ def _report_html(
       display: grid;
       gap: .75rem;
       grid-template-columns: 2fr 1fr;
+      align-items: end;
       margin: 1.5rem 0;
     }}
-    input, select {{
+    input, select, .btn {{
       border: 1px solid var(--rule);
       background: var(--paper);
       color: var(--ink);
       font: inherit;
       padding: .7rem;
     }}
+    .btn {{ cursor: pointer; }}
     .recruiting-workspace {{
       display: grid;
       grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -849,6 +892,21 @@ def _report_html(
     .facts {{ display: grid; gap: .75rem; grid-template-columns: repeat(3, 1fr); }}
     .facts div {{ background: var(--paper-edge); padding: .75rem; }}
     .facts dd {{ margin: .25rem 0 0; }}
+    .best-contact {{
+      background: var(--accent-faint);
+      border-left: 2px solid var(--accent);
+      margin: 1.25rem 0;
+      padding: 1rem 1.25rem;
+    }}
+    .best-contact p {{ margin: .35rem 0 0; }}
+    .callout-label {{
+      color: var(--accent);
+      font-family: ui-monospace, "SF Mono", Menlo,
+        "PingFang SC", monospace;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }}
     .link-list {{ display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; }}
     .audit-list {{ list-style: none; padding: 0; }}
     .audit-list > li {{ border-left: .2rem solid var(--rule);
@@ -859,6 +917,20 @@ def _report_html(
     .audit-fields dd {{ margin: 0; overflow-wrap: anywhere; }}
     details {{ border-top: 1px solid var(--rule); margin-top: 1rem; padding-top: 1rem; }}
     summary {{ cursor: pointer; font-weight: 700; }}
+    .author-index-link.active {{
+      color: var(--accent);
+      font-weight: 700;
+    }}
+    .back-to-top {{
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      border: 1px solid var(--rule);
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      padding: .7rem 1rem;
+    }}
     .muted {{ color: var(--ink-faint); }}
     [hidden] {{ display: none !important; }}
     @media (max-width: 760px) {{
@@ -904,15 +976,19 @@ def _report_html(
     <section class="author-section">
       <h2><span class="num">02</span>作者招聘档案</h2>
       <div class="report-controls" aria-label="作者筛选">
-        <input id="candidate-search" type="search" placeholder="搜索作者"
-               aria-label="搜索作者">
-        <select id="contact-filter" aria-label="按联系方式状态筛选">
-          <option value="">全部联系方式状态</option>
-          <option value="found">found</option>
-          <option value="not_found">not_found</option>
-          <option value="ambiguous">ambiguous</option>
-          <option value="sources_unavailable">sources_unavailable</option>
+        <label for="candidate-search">搜索作者</label>
+        <input id="candidate-search" type="search"
+               placeholder="姓名、机构、联系方式或证据">
+        <label for="contact-filter">联系方式状态</label>
+        <select id="contact-filter">
+          <option value="">全部状态</option>
+          <option value="found">已找到</option>
+          <option value="not_found">未找到</option>
+          <option value="ambiguous">存在歧义</option>
+          <option value="sources_unavailable">来源不可用</option>
         </select>
+        <button class="btn" id="audit-toggle"
+                type="button">展开全部审计</button>
       </div>
       <div class="recruiting-workspace">
         <nav class="author-index" aria-label="作者索引">
@@ -931,22 +1007,70 @@ def _report_html(
       </p>
     </section>
   </article>
+<button class="back-to-top" id="back-to-top"
+        type="button">返回顶部</button>
 <script>
 (() => {{
   const search = document.querySelector("#candidate-search");
   const status = document.querySelector("#contact-filter");
-  const cards = document.querySelectorAll(".candidate-card");
+  const auditToggle = document.querySelector("#audit-toggle");
+  const backToTop = document.querySelector("#back-to-top");
+  const cards = [...document.querySelectorAll(".candidate-card")];
+  const indexItems = [...document.querySelectorAll(".author-index-item")];
+  const indexLinks = [...document.querySelectorAll(".author-index-link")];
+
   const filter = () => {{
-    const query = search.value.toLocaleLowerCase();
-    for (const card of cards) {{
-      const matchesText = card.textContent.toLocaleLowerCase().includes(query);
-      const matchesStatus = !status.value ||
-        card.dataset.contactStatus === status.value;
-      card.hidden = !(matchesText && matchesStatus);
-    }}
+    const query = search ? search.value.toLocaleLowerCase() : "";
+    const selected = status ? status.value : "";
+    cards.forEach((card, index) => {{
+      const matchesText = card.textContent
+        .toLocaleLowerCase()
+        .includes(query);
+      const matchesStatus = !selected ||
+        card.dataset.contactStatus === selected;
+      const hidden = !(matchesText && matchesStatus);
+      card.hidden = hidden;
+      if (indexItems[index]) indexItems[index].hidden = hidden;
+    }});
   }};
-  search.addEventListener("input", filter);
-  status.addEventListener("change", filter);
+
+  if (search) search.addEventListener("input", filter);
+  if (status) status.addEventListener("change", filter);
+
+  if (auditToggle) {{
+    auditToggle.addEventListener("click", () => {{
+      const audits = [...document.querySelectorAll(
+        "details.audit-disclosure"
+      )];
+      const shouldOpen = audits.some(item => !item.open);
+      audits.forEach(item => {{ item.open = shouldOpen; }});
+      auditToggle.textContent = shouldOpen
+        ? "折叠全部审计"
+        : "展开全部审计";
+    }});
+  }}
+
+  if (backToTop) {{
+    backToTop.addEventListener("click", () => {{
+      window.scrollTo({{ top: 0, behavior: "smooth" }});
+    }});
+  }}
+
+  if ("IntersectionObserver" in window) {{
+    const observer = new IntersectionObserver(entries => {{
+      entries.forEach(entry => {{
+        if (!entry.isIntersecting) return;
+        const href = `#${{entry.target.id}}`;
+        indexLinks.forEach(link => {{
+          const active = link.getAttribute("href") === href;
+          link.classList.toggle("active", active);
+          if (active) link.setAttribute("aria-current", "true");
+          else link.removeAttribute("aria-current");
+        }});
+      }});
+    }}, {{ rootMargin: "-30% 0px -60% 0px" }});
+    cards.forEach(card => observer.observe(card));
+  }}
 }})();
 </script>
 </body>
