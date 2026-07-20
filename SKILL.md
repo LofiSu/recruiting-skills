@@ -6,7 +6,11 @@ description: Use when finding the authors, institutions, public professional con
 # Researcher Recruiting
 
 Return useful author leads quickly. Use the host Agent's native web search and
-browsing tools; never install or invoke a local runtime.
+browsing tools; never install or invoke a local language runtime.
+
+This Skill contains its complete report design. Do not install or invoke
+`article-to-html`; its paper-style presentation layer is already embedded in
+[assets/report-template.html](assets/report-template.html).
 
 ## Required workflow
 
@@ -18,10 +22,16 @@ browsing tools; never install or invoke a local runtime.
 4. Search all authors in the largest parallel batches the host supports.
 5. Accept a professional field only when a clickable public page supports it.
 6. Stop at the budget. Retain every author and mark unknown values explicitly.
-7. Copy [assets/report-template.html](assets/report-template.html) to
-   `outputs/<arxiv-id>/report.html`, replace the example tokens and row comment
-   with escaped results, and keep the file self-contained.
-8. Return an ordered chat table and a link to the HTML report.
+7. Generate the single local report described in **Report composition**.
+8. Automatically attempt the publication workflow in
+   [references/publishing.md](references/publishing.md) when an authorized
+   GitHub remote and write-capable host tool are available.
+9. Return an ordered chat table, the local report link, and the verified online
+   URL when publication succeeds.
+
+Do not delay the author result to perform exhaustive profile auditing.
+GitHub Pages propagation can take longer than the enrichment budget; distinguish
+search time from publication time.
 
 ## Search contract
 
@@ -67,16 +77,53 @@ If the arXiv page also cannot be read, report that the paper cannot be resolved
 and do not invent an author list. Never request a local runtime or silently
 substitute a scraper.
 
+## Report composition
+
+Copy [assets/report-template.html](assets/report-template.html) to
+`outputs/<arxiv-id>/report.html` and replace every token with escaped report
+content:
+
+- `{{ARXIV_ID}}`
+- `{{PAPER_TITLE}}`
+- `{{ARXIV_URL}}`
+- `{{GENERATED_AT}}`
+- `{{PAPER_META}}`
+- `{{TLDR_BODY}}`
+- `{{OVERVIEW_BODY}}`
+- `{{SUMMARY_CARDS}}`
+- `{{AUTHOR_ROWS}}`
+- `{{LIMITATIONS_BODY}}`
+- `{{REFERENCE_ITEMS}}`
+
+Use the embedded structures exactly:
+
+- `.doc`, `.doc-header`, `.doc-eyebrow`, `.doc-title`, and `.doc-meta`;
+- the top `.tldr` result summary;
+- numbered sections `01` 论文概览, `02` 作者与公开联系路径, and `03` 证据与边界;
+- three `.card` summary items;
+- one `.author-row` for every author, in exact arXiv order;
+- direct source links in `.contact-list`, `.evidence-list`, and the References footer.
+
+Keep the interface text Chinese. Preserve the paper title, author names,
+quotations, and original evidence excerpts exactly as their sources present them.
+Use no search controls, filters, collapsible audit panels, scoring, recruiting
+recommendations, scripts, external stylesheets, external fonts, or CDN assets.
+
+Escape `&`, `<`, `>`, `"`, and `'` before insertion. Permit link targets only
+with `https`, `http`, and `mailto` schemes. Include `rel="noreferrer noopener"`
+on external HTTP links.
+
 ## Output contract
 
-Write only `outputs/<arxiv-id>/report.html` for the requested paper. Chat and
-HTML must contain the same ordered authors and core values.
+Write only `outputs/<arxiv-id>/report.html` locally for the requested paper.
+Chat and HTML must contain the same ordered authors and core values.
 
-Escape every collected value before inserting it into HTML. Permit links only
-for `https`, `http`, and `mailto`. Keep names and paper titles exactly as the
-source presents them.
+The report is a single-file, static, responsive evidence document. It includes
+only the paper overview, ordered author entries, public contact paths,
+verification states, evidence boundaries, and direct references.
 
-The report must remain a compact, static evidence table. Include only the paper
-summary, ordered author rows, public contact paths, verification states, and
-direct evidence links. Do not add interactive controls, scoring, or automated
-recruiting recommendations.
+Automatic publication copies the finished file to
+`<arxiv-id>/index.html` on `gh-pages`; it must not add reports to `main`.
+If publication cannot run or cannot be verified, return the local report
+immediately and state the concrete limitation. Never fabricate or pre-announce
+a live URL.

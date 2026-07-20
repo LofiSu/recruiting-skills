@@ -1,4 +1,4 @@
 interface:
   display_name: "Researcher Recruiting"
   short_description: "Quickly find paper authors and public contact evidence"
-  default_prompt: "Use $researcher-recruiting-skill to quickly find every author of this arXiv paper, their institution, public professional contact routes, and evidence, then generate the compact HTML report."
+  default_prompt: "Use $researcher-recruiting-skill to quickly find every author of this arXiv paper, their institution, public professional contact routes, and evidence, then generate the embedded article-style HTML report and publish it to GitHub Pages when authorized."

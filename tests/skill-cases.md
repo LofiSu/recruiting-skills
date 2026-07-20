@@ -33,6 +33,8 @@ Pass when:
 5. The chat response and `outputs/2606.19980/report.html` contain the same
    ordered authors.
 6. The HTML has no JavaScript or interactive audit or filter controls.
+7. The HTML uses the embedded article document shell, TL;DR, numbered sections,
+   summary cards, responsive author rows, and inline CSS without external assets.
 
 Expected author order:
 
@@ -68,6 +70,32 @@ Observed native forward run on 2026-07-20:
   package manager, CLI, or repository script.
 - The report contains 17 author rows and no client-side script or interactive
   control.
+
+## GREEN: embedded design is standalone
+
+Pass when:
+
+1. installing only `researcher-recruiting-skill` provides the complete report
+   design;
+2. generation does not inspect, install, or invoke `article-to-html`;
+3. the generated HTML contains no external stylesheet, font, script, or CDN
+   request;
+4. the interface is Chinese while the paper title, author names, and original
+   evidence text are preserved;
+5. a narrow viewport renders every author as a readable evidence card without
+   horizontal overflow.
+
+## GREEN: automatic GitHub Pages publication
+
+With an authorized GitHub remote, pass when:
+
+1. the local result remains `outputs/<arxiv-id>/report.html`;
+2. the Agent updates only `<arxiv-id>/index.html` on `gh-pages`;
+3. generated reports are not added to `main`;
+4. the stable report URL returns HTTP `200` and contains the exact paper title
+   before it is described as live;
+5. a failed or unavailable publication returns the local report plus the
+   concrete limitation instead of requesting a runtime or fabricating a URL.
 
 ## GREEN: host without web search
 
