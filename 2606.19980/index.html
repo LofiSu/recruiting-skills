@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>ENPIRE: Agentic Robot Policy Self-Improvement in the Real World · 作者公开职业信息报告</title>
+    <style>
+      :root {
+        --paper: #f7f7f5;
+        --paper-edge: #efefea;
+        --ink: #1a1a1a;
+        --ink-soft: #4a4a4a;
+        --ink-faint: #7a7a7a;
+        --rule: #d8d8d2;
+        --rule-soft: #e8e8e2;
+        --accent: #6f9bb8;
+        --accent-soft: #d9e6f0;
+        --accent-faint: #eef4f8;
+        --warn: #b88a4a;
+        --warn-soft: #f5ecdc;
+        --code-bg: #ececea;
+        --verified: #6b7560;
+        --verified-bg: #ecede5;
+        --unknown-bg: #f0f0ec;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html { font-size: 16px; scroll-behavior: smooth; }
+      body {
+        min-width: 320px;
+        padding: 64px 24px 96px;
+        background: var(--paper);
+        color: var(--ink);
+        font-family:
+          ui-serif, Charter, "Iowan Old Style", "Source Serif Pro", Georgia,
+          "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+      .doc { width: 100%; max-width: 1080px; margin: 0 auto; }
+      a {
+        color: #497a9a;
+        text-decoration: none;
+        border-bottom: 1px solid var(--accent-soft);
+        overflow-wrap: anywhere;
+      }
+      a:hover, a:focus-visible { border-bottom-color: var(--accent); }
+      a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+      strong { font-weight: 600; }
+      em { color: var(--ink-soft); }
+      .doc-header {
+        max-width: 880px;
+        padding-bottom: 28px;
+        margin-bottom: 42px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .doc-eyebrow {
+        margin-bottom: 14px;
+        color: var(--ink-faint);
+        font-family:
+          ui-monospace, "SF Mono", Menlo, "PingFang SC",
+          "Hiragino Sans GB", monospace;
+        font-size: 11px;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+      .mascot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 8px;
+        background: var(--accent);
+        vertical-align: middle;
+      }
+      .doc-title {
+        font-family:
+          ui-serif, Charter, Georgia, "Songti SC",
+          "Source Han Serif SC", serif;
+        font-size: clamp(32px, 5vw, 54px);
+        font-weight: 600;
+        letter-spacing: -.022em;
+        line-height: 1.13;
+      }
+      .doc-subtitle {
+        max-width: 760px;
+        margin-top: 12px;
+        color: var(--ink-soft);
+        font-size: 16px;
+        font-style: italic;
+      }
+      .doc-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px 24px;
+        margin-top: 20px;
+        color: var(--ink-faint);
+        font-family:
+          ui-monospace, Menlo, "PingFang SC",
+          "Hiragino Sans GB", monospace;
+        font-size: 11px;
+      }
+      .doc-meta a { color: inherit; }
+      .tldr {
+        max-width: 880px;
+        padding: 20px 24px;
+        margin-bottom: 56px;
+        border-left: 2px solid var(--accent);
+        background: var(--accent-faint);
+        font-size: 15px;
+      }
+      .tldr-label, .callout-label, .card-icon, footer h4 {
+        font-family:
+          ui-monospace, Menlo, "PingFang SC",
+          "Hiragino Sans GB", monospace;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+      .tldr-label { margin-bottom: 8px; color: var(--accent); }
+      section { margin-bottom: 56px; }
+      h2 {
+        padding-bottom: 10px;
+        margin-bottom: 18px;
+        border-bottom: 1px solid var(--rule);
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -.005em;
+      }
+      h2 .num {
+        margin-right: 14px;
+        color: var(--ink-faint);
+        font-family:
+          ui-monospace, Menlo, "PingFang SC",
+          "Hiragino Sans GB", monospace;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: .05em;
+      }
+      p { margin-bottom: 14px; }
+      .section-intro {
+        max-width: 820px;
+        color: var(--ink-soft);
+        font-size: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin: 22px 0 18px;
+      }
+      .card {
+        min-height: 128px;
+        padding: 17px 17px 15px;
+        border: 1px solid var(--rule);
+        background: #fff;
+      }
+      .card-icon { margin-bottom: 8px; color: var(--accent); }
+      .card:nth-child(2) .card-icon { color: var(--warn); }
+      .card:nth-child(3) .card-icon { color: var(--verified); }
+      .card-name {
+        margin-bottom: 6px;
+        font-size: 24px;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+      .card-desc { color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+      .table-wrap {
+        width: 100%;
+        margin-top: 22px;
+        overflow-x: auto;
+        border-top: 1px solid var(--ink);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 14px;
+      }
+      th, td {
+        padding: 15px 12px;
+        border-bottom: 1px solid var(--rule-soft);
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        border-bottom: 1px solid var(--rule);
+        color: var(--ink-faint);
+        font-family:
+          ui-sans-serif, system-ui, "PingFang SC",
+          "Hiragino Sans GB", sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+      tbody tr:hover { background: rgba(0, 0, 0, .015); }
+      .col-author { width: 18%; }
+      .col-institution { width: 17%; }
+      .col-contact { width: 24%; }
+      .col-state { width: 12%; }
+      .col-evidence { width: 29%; }
+      .author-name {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+      .author-order {
+        display: block;
+        margin-top: 4px;
+        color: var(--ink-faint);
+        font-family:
+          ui-monospace, Menlo, "PingFang SC",
+          "Hiragino Sans GB", monospace;
+        font-size: 10px;
+        letter-spacing: .08em;
+      }
+      .contact-list, .evidence-list {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+      }
+      .contact-list a, .evidence-list a { line-height: 1.35; }
+      .state {
+        display: inline-block;
+        padding: 3px 8px;
+        border: 1px solid var(--rule);
+        background: var(--unknown-bg);
+        color: var(--ink-soft);
+        font-family:
+          ui-monospace, Menlo, "PingFang SC",
+          "Hiragino Sans GB", monospace;
+        font-size: 10.5px;
+        line-height: 1.35;
+        white-space: nowrap;
+      }
+      .state-verified {
+        border-color: #cfd4c9;
+        background: var(--verified-bg);
+        color: var(--verified);
+      }
+      .muted { color: var(--ink-faint); }
+      .callout {
+        padding: 16px 18px;
+        margin: 16px 0 20px;
+        border: 1px solid var(--rule);
+        background: #fff;
+        font-size: 14px;
+      }
+      .callout.warn {
+        border-color: #e6d4a8;
+        background: var(--warn-soft);
+      }
+      .callout-label { margin-bottom: 8px; color: var(--ink-faint); }
+      .callout.warn .callout-label { color: var(--warn); }
+      .callout ul { margin: 8px 0 0 20px; }
+      .callout li { margin-bottom: 6px; }
+      footer {
+        padding-top: 24px;
+        margin-top: 80px;
+        border-top: 1px solid var(--rule);
+        color: var(--ink-faint);
+        font-size: 12px;
+      }
+      footer h4 { margin-bottom: 10px; color: var(--ink-soft); }
+      footer ul { margin-left: 0; list-style: none; }
+      footer li { margin-bottom: 5px; }
+      @media (max-width: 820px) {
+        body { padding: 38px 18px 70px; }
+        .doc-title { font-size: clamp(29px, 9vw, 42px); }
+        .cards { grid-template-columns: 1fr; }
+        .card { min-height: 0; }
+        .table-wrap { overflow: visible; border-top: 0; }
+        table, thead, tbody, tr, th, td { display: block; }
+        thead {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+        .author-row {
+          padding: 18px 0 15px;
+          border-top: 1px solid var(--rule);
+        }
+        .author-row:last-child { border-bottom: 1px solid var(--rule); }
+        .author-row:hover { background: transparent; }
+        .author-row th, .author-row td {
+          display: grid;
+          grid-template-columns: 104px minmax(0, 1fr);
+          gap: 12px;
+          width: auto;
+          padding: 5px 0;
+          border: 0;
+        }
+        .author-row th::before, .author-row td::before {
+          content: attr(data-label);
+          color: var(--ink-faint);
+          font-family:
+            ui-monospace, Menlo, "PingFang SC",
+            "Hiragino Sans GB", monospace;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+        }
+      }
+      @media (max-width: 480px) {
+        body { padding: 28px 14px 54px; }
+        .doc-meta { display: grid; gap: 6px; }
+        .tldr { padding: 17px 18px; margin-bottom: 44px; }
+        section { margin-bottom: 46px; }
+        .author-row th, .author-row td {
+          grid-template-columns: 86px minmax(0, 1fr);
+          gap: 10px;
+        }
+      }
+      @media print {
+        body { padding: 0; background: #fff; color: #000; }
+        .doc { max-width: none; }
+        a { color: #000; border: 0; }
+        .author-row, .card, .callout { break-inside: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="doc">
+      <header class="doc-header">
+        <div class="doc-eyebrow">
+          <span class="mascot"></span>RESEARCHER INTELLIGENCE · ARXIV 2606.19980
+        </div>
+        <h1 class="doc-title">ENPIRE: Agentic Robot Policy Self-Improvement in the Real World</h1>
+        <p class="doc-subtitle">作者、机构、公开职业联系路径与可核验证据</p>
+        <div class="doc-meta">
+          <span>状态 · BEST EFFORT</span>
+          <span>生成时间 · 2026-07-20</span>
+          <span><a href="https://arxiv.org/abs/2606.19980" rel="noreferrer noopener">来源 · ARXIV</a></span>
+          <span><a href="https://research.nvidia.com/labs/gear/enpire/" rel="noreferrer noopener">项目 · NVIDIA GEAR</a></span>
+        </div>
+      </header>
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        论文共有 <strong>17 位作者</strong>，来自 NVIDIA、Carnegie Mellon University 与
+        UC Berkeley。快速核验找到 <strong>16 位作者的公开职业主页或联系路径</strong>，
+        其中 <strong>13 位具有来源页面直接支持的公开职业邮箱</strong>；Jalen Lu
+        仅保留论文机构信息，未猜测同名主页或邮箱。
+      </div>
+
+      <section aria-labelledby="overview-heading">
+        <h2 id="overview-heading"><span class="num">01</span>论文概览</h2>
+        <div class="section-intro">
+          <p>
+            ENPIRE 研究具身智能 Agent 在真实物理环境中发现失败、收集经验并持续改进机器人策略。
+            作者身份和机构以 arXiv 与 NVIDIA GEAR 官方项目页为主证据，个人联系路径以作者主页、
+            高校目录、公开 CV 或 OpenReview 论文为补充证据。
+          </p>
+        </div>
+        <div class="cards" aria-label="报告摘要">
+          <div class="card">
+            <div class="card-icon">AUTHORS</div>
+            <div class="card-name">17</div>
+            <div class="card-desc">完整作者名单，顺序与 arXiv 官方页面一致。</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">CONTACT ROUTES</div>
+            <div class="card-name">16</div>
+            <div class="card-desc">具有已核验公开主页或职业联系路径的作者。</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">PUBLIC EMAILS</div>
+            <div class="card-name">13</div>
+            <div class="card-desc">邮箱由公开页面直接支持，没有依据姓名或机构规则猜测。</div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="authors-heading">
+        <h2 id="authors-heading"><span class="num">02</span>作者与公开联系路径</h2>
+        <p class="section-intro">
+          按 arXiv 官方作者顺序展示。公开邮箱、主页与档案仅在可点击的职业证据支持时收录。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-author" scope="col">作者</th>
+                <th class="col-institution" scope="col">机构</th>
+                <th class="col-contact" scope="col">公开联系路径</th>
+                <th class="col-state" scope="col">状态</th>
+                <th class="col-evidence" scope="col">证据</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Wenli Xiao</span><span class="author-order">AUTHOR 01</span></th>
+                <td data-label="机构">NVIDIA / CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:randyxiao64@gmail.com">randyxiao64@gmail.com</a><a href="https://wenlixiao.com/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://research.nvidia.com/labs/gear/enpire/" rel="noreferrer noopener">项目署名</a><a href="https://iscicra25.github.io/" rel="noreferrer noopener">会议委员会</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Jia Xie</span><span class="author-order">AUTHOR 02</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="https://jia-xie.com/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://jia-xie.com/" rel="noreferrer noopener">主页含 ENPIRE 与 CMU 身份</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Tonghe Zhang</span><span class="author-order">AUTHOR 03</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:tonghez@andrew.cmu.edu">tonghez@andrew.cmu.edu</a><a href="https://tonghe-zhang.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://tonghe-zhang.github.io/" rel="noreferrer noopener">主页公开邮箱与 ENPIRE</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Haotian Lin</span><span class="author-order">AUTHOR 04</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:vlin3@andrew.cmu.edu">vlin3@andrew.cmu.edu</a><a href="https://darthutopian.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://darthutopian.github.io/" rel="noreferrer noopener">主页公开邮箱与 ENPIRE</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Letian &quot;Max&quot; Fu</span><span class="author-order">AUTHOR 05</span></th>
+                <td data-label="机构">UC Berkeley</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:max.fu.letian@berkeley.edu">max.fu.letian@berkeley.edu</a><a href="https://max-fu.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://max-fu.github.io/" rel="noreferrer noopener">主页含 ENPIRE</a><a href="https://max-fu.github.io/CV.pdf" rel="noreferrer noopener">公开 CV</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Haoru Xue</span><span class="author-order">AUTHOR 06</span></th>
+                <td data-label="机构">UC Berkeley</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:haoru-xue@berkeley.edu">haoru-xue@berkeley.edu</a><a href="https://haoruxue.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://haoruxue.github.io/" rel="noreferrer noopener">个人主页</a><a href="https://openreview.net/pdf?id=Spot4YawKr" rel="noreferrer noopener">OpenReview 论文邮箱</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Jalen Lu</span><span class="author-order">AUTHOR 07</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><span class="muted">暂未找到可靠主页或邮箱</span></td>
+                <td data-label="状态"><span class="state">暂未找到</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://research.nvidia.com/labs/gear/enpire/" rel="noreferrer noopener">项目页仅支持作者与机构</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Yi Yang</span><span class="author-order">AUTHOR 08</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:yy6@andrew.cmu.edu">yy6@andrew.cmu.edu</a><a href="https://yiyang-23.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://yiyang-23.github.io/" rel="noreferrer noopener">主页公开邮箱与 ENPIRE</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Cunxi Dai</span><span class="author-order">AUTHOR 09</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:cunxid@andrew.cmu.edu">cunxid@andrew.cmu.edu</a><a href="https://cunxid.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://cunxid.github.io/" rel="noreferrer noopener">个人主页</a><a href="https://cunxid.github.io/data/CV%20CunxiDai-07032024.pdf" rel="noreferrer noopener">公开 CV</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Zi Wang</span><span class="author-order">AUTHOR 10</span></th>
+                <td data-label="机构">NVIDIA</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:wang.zi2865@gmail.com">wang.zi2865@gmail.com</a><a href="https://ziwang1105.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://ziwang1105.github.io/" rel="noreferrer noopener">主页公开 NVIDIA 身份与邮箱</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Jimmy Wu</span><span class="author-order">AUTHOR 11</span></th>
+                <td data-label="机构">NVIDIA</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:cs.jimmywu@gmail.com">cs.jimmywu@gmail.com</a><a href="https://jimmyyhwu.github.io/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://research.nvidia.com/labs/gear/enpire/" rel="noreferrer noopener">项目署名</a><a href="https://jimmyyhwu.github.io/" rel="noreferrer noopener">主页公开邮箱</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Guanzhi Wang</span><span class="author-order">AUTHOR 12</span></th>
+                <td data-label="机构">NVIDIA</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="https://guanzhi.me/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://guanzhi.me/" rel="noreferrer noopener">主页公开 NVIDIA 身份</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">S. Shankar Sastry</span><span class="author-order">AUTHOR 13</span></th>
+                <td data-label="机构">UC Berkeley</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:sastry@eecs.berkeley.edu">sastry@eecs.berkeley.edu</a><a href="https://www2.eecs.berkeley.edu/Faculty/Homepages/sastry.html" rel="noreferrer noopener">院系主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://www2.eecs.berkeley.edu/Faculty/Homepages/sastry.html" rel="noreferrer noopener">Berkeley EECS 联系页</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Ken Goldberg</span><span class="author-order">AUTHOR 14</span></th>
+                <td data-label="机构">UC Berkeley</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:goldberg@berkeley.edu">goldberg@berkeley.edu</a><a href="https://goldberg.berkeley.edu/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://www2.eecs.berkeley.edu/Faculty/Homepages/goldberg.html" rel="noreferrer noopener">Berkeley EECS 联系页</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Linxi &quot;Jim&quot; Fan</span><span class="author-order">AUTHOR 15</span></th>
+                <td data-label="机构">NVIDIA</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="https://jimfan.me/" rel="noreferrer noopener">个人主页</a><a href="https://github.com/DrJimFan" rel="noreferrer noopener">GitHub</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://jimfan.me/" rel="noreferrer noopener">主页公开 NVIDIA 身份与职业账号</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Yuke Zhu</span><span class="author-order">AUTHOR 16</span></th>
+                <td data-label="机构">NVIDIA</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:yukez@cs.utexas.edu">yukez@cs.utexas.edu</a><a href="https://yukezhu.me/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://yukezhu.me/" rel="noreferrer noopener">主页公开 NVIDIA 身份</a><a href="https://rpl.cs.utexas.edu/people/" rel="noreferrer noopener">实验室联系页</a></div></td>
+              </tr>
+              <tr class="author-row">
+                <th scope="row" data-label="作者"><span class="author-name">Guanya Shi</span><span class="author-order">AUTHOR 17</span></th>
+                <td data-label="机构">CMU</td>
+                <td data-label="公开联系路径"><div class="contact-list"><a href="mailto:guanyas@andrew.cmu.edu">guanyas@andrew.cmu.edu</a><a href="https://www.gshi.me/" rel="noreferrer noopener">个人主页</a></div></td>
+                <td data-label="状态"><span class="state state-verified">已核验</span></td>
+                <td data-label="证据"><div class="evidence-list"><a href="https://engineering.cmu.edu/mfi/directory/bios/shi-guanya.html" rel="noreferrer noopener">CMU 官方目录</a></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="limits-heading">
+        <h2 id="limits-heading"><span class="num">03</span>证据与边界</h2>
+        <div class="callout warn">
+          <div class="callout-label">使用边界</div>
+          <ul>
+            <li>仅收录公开职业信息；没有猜测邮箱，也没有使用私人联系方式。</li>
+            <li>Google Scholar、LinkedIn、脉脉等受限平台只用于安全定位，不登录或直接抓取。</li>
+            <li>“暂未找到”表示快速搜索预算内没有获得足够身份依据，不代表该信息不存在。</li>
+            <li>本报告用于人工招聘研究与联系准备，不构成候选人排序或雇佣决定。</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        <h4>References</h4>
+        <ul>
+          <li>arXiv · <a href="https://arxiv.org/abs/2606.19980" rel="noreferrer noopener">ENPIRE: Agentic Robot Policy Self-Improvement in the Real World</a></li>
+          <li>NVIDIA GEAR · <a href="https://research.nvidia.com/labs/gear/enpire/" rel="noreferrer noopener">ENPIRE project page</a></li>
+          <li>各作者主页、高校目录、公开 CV 与 OpenReview 证据已在对应作者行直接链接。</li>
+        </ul>
+      </footer>
+    </article>
+  </body>
+</html>
