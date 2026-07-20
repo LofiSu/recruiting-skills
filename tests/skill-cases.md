@@ -150,6 +150,31 @@ regression tests:
 - A server's excessive `Retry-After` value cannot hold the workflow beyond the
   configured retry budget.
 
-Fresh forward evidence for the current HTML-only success criteria will be
-recorded after Task 3. Until then, the legacy runs above remain useful
-execution evidence but are not claimed as HTML-only validation.
+## Current HTML-only validation evidence
+
+Task 3 validated branch `feat/html-only-report` at revision `b1cfc64` before
+recording this evidence. The opt-in public-network smoke test passed:
+
+```bash
+RUN_NETWORK_TESTS=1 \
+  /private/tmp/researcher-recruiting-venv/bin/python -m pytest \
+  tests/test_network_e2e.py -m network -q
+```
+
+The real `arXiv:2601.21998` CLI run produced:
+
+```text
+/Users/sulin/Documents/Codex/2026-07-16/agent-arxiv-open-review-github-claude/outputs/2601.21998-html/2601.21998-20260720T061544986256Z
+```
+
+That run directory contains exactly `report.html`. The self-contained report
+retains all 12 paper authors in paper order: Lin Li, Qihang Zhang, Yiming Luo,
+Shuai Yang, Ruilin Wang, Fei Han, Mingrui Yu, Zelin Gao, Nan Xue, Xing Zhu,
+Yujun Shen, and Yinghao Xu. It contains 12 candidate cards and 12 corresponding
+Source attempts sections. The live source attempts were unavailable during
+this run, so the report truthfully records `sources_unavailable` rather than
+claiming missing contacts.
+
+This is the fresh execution evidence for the current HTML-only artifact
+criterion. The earlier records above remain truthfully labeled as legacy
+pre-HTML evidence.
