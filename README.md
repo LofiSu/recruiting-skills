@@ -40,6 +40,15 @@ directory, then refresh that Agent's Skill discovery.
 
 There is nothing else to install.
 
+To connect the current checkout to Codex without copying files:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+ln -s "$PWD" "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
+```
+
+Start a new Codex turn after linking so Skill discovery refreshes.
+
 ## Use
 
 Send the paper directly:
