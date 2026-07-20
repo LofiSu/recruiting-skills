@@ -171,9 +171,12 @@ That run directory contains exactly `report.html`. The self-contained report
 retains all 12 paper authors in paper order: Lin Li, Qihang Zhang, Yiming Luo,
 Shuai Yang, Ruilin Wang, Fei Han, Mingrui Yu, Zelin Gao, Nan Xue, Xing Zhu,
 Yujun Shen, and Yinghao Xu. It contains 12 candidate cards and 12 corresponding
-Source attempts sections. The live source attempts were unavailable during
-this run, so the report truthfully records `sources_unavailable` rather than
-claiming missing contacts.
+Source attempts sections. The 180 live source attempts had mixed outcomes:
+25 `ok`, 60 `not_found`, 83
+`source_unavailable`, and 12 `blocked_by_robots`. All 12 authors have the
+aggregate contact status `sources_unavailable` because each had applicable
+unavailable sources and no verified contact. That aggregate status does not
+mean every individual source attempt was unavailable.
 
 This is the fresh execution evidence for the current HTML-only artifact
 criterion. The earlier records above remain truthfully labeled as legacy
