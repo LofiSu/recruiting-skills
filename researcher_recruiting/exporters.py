@@ -360,7 +360,7 @@ def _display_scalar(value: object) -> str:
 def _render_metadata(value: object) -> str:
     if isinstance(value, dict):
         if not value:
-            return '<span class="muted">None recorded.</span>'
+            return '<span class="muted">未记录。</span>'
         return (
             '<dl class="audit-fields">'
             + "".join(
@@ -374,7 +374,7 @@ def _render_metadata(value: object) -> str:
         )
     if isinstance(value, list):
         if not value:
-            return '<span class="muted">None recorded.</span>'
+            return '<span class="muted">未记录。</span>'
         return (
             "<ol>"
             + "".join(
@@ -413,13 +413,13 @@ def _render_evidence_item(
     )
     evidence_url = _link(str(item["url"]), str(item["url"]))
     fields = (
-        ("Source", _text(item["source"])),
-        ("Field", _text(field)),
-        ("Value", rendered_value),
-        ("URL", evidence_url),
-        ("Collected at", _text(item["collected_at"])),
-        ("Candidate ID", _text(item["candidate_id"])),
-        ("Metadata", _render_metadata(item["metadata"])),
+        ("来源", _text(item["source"])),
+        ("字段", _text(field)),
+        ("值", rendered_value),
+        ("链接", evidence_url),
+        ("采集时间", _text(item["collected_at"])),
+        ("候选人 ID", _text(item["candidate_id"])),
+        ("元数据", _render_metadata(item["metadata"])),
     )
     return (
         f'<li class="{_text(css_class)}">'
@@ -431,7 +431,7 @@ def _render_evidence_list(
     evidence: Iterable[dict[str, Any]],
     *,
     css_class: str = "evidence-item",
-    empty: str = "No public identity evidence.",
+    empty: str = "未记录公开身份依据。",
 ) -> str:
     items = [
         _render_evidence_item(item, css_class=css_class)
@@ -455,24 +455,24 @@ def _render_contact_point(point: dict[str, Any]) -> str:
         str(point["source_url"]),
     )
     fields = (
-        ("Kind", _text(point["kind"])),
-        ("Value", _render_contact_value(point)),
-        ("Source", _text(point["source"])),
-        ("Source URL", source_url),
-        ("Collected at", _text(point["collected_at"])),
-        ("Confidence", _text(point["confidence"])),
-        ("Direct", _text(_display_scalar(point["direct"]))),
-        ("Metadata", _render_metadata(point["metadata"])),
+        ("类型", _text(point["kind"])),
+        ("值", _render_contact_value(point)),
+        ("来源", _text(point["source"])),
+        ("来源链接", source_url),
+        ("采集时间", _text(point["collected_at"])),
+        ("置信度", _text(point["confidence"])),
+        ("是否直接联系", _text(_display_scalar(point["direct"]))),
+        ("元数据", _render_metadata(point["metadata"])),
     )
     nested_evidence = _render_evidence_list(
         point["evidence"],
         css_class="contact-evidence",
-        empty="No contact evidence recorded.",
+        empty="未记录联系方式证据。",
     )
     return (
         '<li class="contact-point">'
         f"{_render_audit_fields(fields)}"
-        f"<h4>Evidence</h4>{nested_evidence}</li>"
+        f"<h4>证据</h4>{nested_evidence}</li>"
     )
 
 
@@ -483,11 +483,11 @@ def _render_contact_provenance(
     content = (
         '<ul class="audit-list">' + "".join(items) + "</ul>"
         if items
-        else '<p class="muted">No contact-point provenance recorded.</p>'
+        else '<p class="muted">未记录联系方式溯源。</p>'
     )
     return (
         '<details class="contact-provenance">'
-        f"<summary>Contact-point provenance</summary>{content}</details>"
+        f"<summary>联系方式溯源</summary>{content}</details>"
     )
 
 
@@ -500,14 +500,14 @@ def _render_source_attempt(attempt: dict[str, Any]) -> str:
     evidence = _render_evidence_list(
         attempt["evidence"],
         css_class="source-evidence",
-        empty="No evidence returned by this source.",
+        empty="此来源未返回证据。",
     )
     return (
         '<li class="source-attempt" '
         f'data-source="{_text(attempt["source"])}">'
         f"<p><strong>{_text(attempt['source'])}</strong>: "
         f"{_text(attempt['status'])} "
-        f"({_text(attempt['evidence_count'])} evidence)"
+        f"（{_text(attempt['evidence_count'])} 条证据）"
         f"{error}</p>{evidence}</li>"
     )
 
@@ -517,7 +517,7 @@ def _render_source_attempts(
 ) -> str:
     items = [_render_source_attempt(attempt) for attempt in attempts]
     if not items:
-        return '<p class="muted">No source attempts recorded.</p>'
+        return '<p class="muted">未记录来源尝试。</p>'
     return '<ul class="audit-list">' + "".join(items) + "</ul>"
 
 
@@ -660,14 +660,14 @@ def _report_html(
             _email_link(str(candidate["email"]))
             if candidate["email"]
             else "",
-            _link("Contact form", str(candidate["contact_form"]))
+            _link("联系表单", str(candidate["contact_form"]))
             if candidate["contact_form"]
             else "",
         ]
         profile_links = [
             _link(label, str(candidate[field]))
             for label, field in (
-                ("Homepage", "homepage"),
+                ("个人主页", "homepage"),
                 ("GitHub", "github"),
                 ("OpenReview", "openreview"),
                 ("ORCID", "orcid"),
@@ -691,17 +691,17 @@ def _report_html(
             if contacts
             else (
                 "<p class=\"muted\">"
-                "No verified public professional contact was found."
+                "未找到经验证的公开职业联系方式。"
                 "</p>"
             )
         )
         locator_html = _list_items(
             locator_links,
-            "No locator links were available.",
+            "没有可用的定位链接。",
         )
         reason_html = _list_items(
             (_text(reason) for reason in candidate["reasons"]),
-            "No identity reasons recorded.",
+            "未记录身份匹配理由。",
         )
 
         evidence_html = _render_evidence_list(
@@ -721,21 +721,21 @@ def _report_html(
 <article id="author-{_text(order)}" class="candidate-card"
          data-contact-status="{_text(candidate['contact_status'])}">
   <header>
-    <p class="eyebrow">Author {_text(order)}</p>
+    <p class="eyebrow">作者 {_text(order)}</p>
     <h2>{_text(candidate['author_name'])}</h2>
     <p>{_text(candidate['original_affiliation'])}</p>
   </header>
   <dl class="facts">
-    <div><dt>Identity</dt><dd>{_text(candidate['identity_state'])}</dd></div>
-    <div><dt>Confidence</dt><dd>{_text(candidate['confidence'])}/100</dd></div>
-    <div><dt>Contact status</dt><dd>{_text(candidate['contact_status'])}</dd></div>
+    <div><dt>身份匹配</dt><dd>{_text(candidate['identity_state'])}</dd></div>
+    <div><dt>置信度</dt><dd>{_text(candidate['confidence'])}/100</dd></div>
+    <div><dt>联系状态</dt><dd>{_text(candidate['contact_status'])}</dd></div>
   </dl>
-  <section><h3>Public contacts and profiles</h3>{contact_html}</section>
-  <section><h3>Locator-only links</h3>{locator_html}</section>
+  <section><h3>公开联系方式与资料</h3>{contact_html}</section>
+  <section><h3>仅用于定位的链接</h3>{locator_html}</section>
   {contact_provenance_html}
-  <details><summary>Identity reasons</summary>{reason_html}</details>
-  <details><summary>Evidence</summary>{evidence_html}</details>
-  <details><summary>Source attempts</summary>{attempts_html}</details>
+  <details><summary>身份匹配理由</summary>{reason_html}</details>
+  <details><summary>证据</summary>{evidence_html}</details>
+  <details><summary>来源尝试</summary>{attempts_html}</details>
 </article>"""
         )
 

@@ -138,8 +138,8 @@ def test_html_contains_complete_candidate_and_audit_data(
     assert "Google Scholar" in report
     assert "LinkedIn" in report
     assert "Maimai" in report
-    assert "Evidence" in report
-    assert "Source attempts" in report
+    assert "证据" in report
+    assert "来源尝试" in report
     assert "fixture" in report
 
 
@@ -160,6 +160,139 @@ def test_html_uses_chinese_article_design_and_original_content(
     assert "--ink: #1a1a1a" in report
     assert "ui-serif" in report
     assert "ui-monospace" in report
+
+
+def test_html_localizes_all_static_dossier_and_audit_copy(
+    tmp_path, run_result
+):
+    match = run_result.matches[0]
+    empty_report = _report(
+        replace(
+            run_result,
+            matches=(
+                replace(
+                    match,
+                    reasons=(),
+                    evidence=(),
+                    contact_points=(),
+                ),
+            ),
+            source_results=(),
+        ),
+        tmp_path,
+    )
+    contact_without_evidence = replace(
+        match.contact_points[0],
+        evidence=(),
+        metadata={},
+    )
+    source_without_evidence = replace(
+        run_result.source_results[0],
+        evidence=(),
+    )
+    homepage = ContactPoint(
+        kind=ContactKind.HOMEPAGE,
+        value="https://example.test/ada",
+        source="fixture",
+        source_url="https://example.test",
+        collected_at="2026-07-20T05:06:07Z",
+        confidence=90,
+        direct=False,
+    )
+    audit_report = _report(
+        replace(
+            run_result,
+            matches=(
+                replace(
+                    match,
+                    evidence=(),
+                    contact_points=(
+                        contact_without_evidence,
+                        homepage,
+                    ),
+                ),
+            ),
+            source_results=(source_without_evidence,),
+        ),
+        tmp_path,
+    )
+    visible_text = " ".join(
+        BeautifulSoup(report, "html.parser").select_one(
+            "article.doc"
+        ).get_text(" ", strip=True)
+        for report in (
+            _report(run_result, tmp_path),
+            empty_report,
+            audit_report,
+        )
+    )
+
+    for expected in (
+        "作者 1",
+        "身份匹配",
+        "置信度",
+        "联系状态",
+        "公开联系方式与资料",
+        "仅用于定位的链接",
+        "身份匹配理由",
+        "证据",
+        "来源尝试",
+        "联系方式溯源",
+        "类型",
+        "值",
+        "来源",
+        "来源链接",
+        "采集时间",
+        "直接联系",
+        "字段",
+        "候选人 ID",
+        "元数据",
+        "联系表单",
+        "个人主页",
+        "未找到经验证的公开职业联系方式。",
+        "未记录身份匹配理由。",
+        "未记录公开身份依据。",
+        "未记录联系方式溯源。",
+        "未记录来源尝试。",
+        "未记录联系方式证据。",
+        "此来源未返回证据。",
+        "条证据",
+        "未记录。",
+    ):
+        assert expected in visible_text
+
+    for english_copy in (
+        "Author 1",
+        "Identity",
+        "Confidence",
+        "Contact status",
+        "Public contacts and profiles",
+        "Locator-only links",
+        "Identity reasons",
+        "Evidence",
+        "Source attempts",
+        "Contact-point provenance",
+        "Kind",
+        "Value",
+        "Source URL",
+        "Collected at",
+        "Direct",
+        "Field",
+        "Candidate ID",
+        "Metadata",
+        "Contact form",
+        "Homepage",
+        "No verified public professional contact was found.",
+        "No identity reasons recorded.",
+        "No public identity evidence.",
+        "No contact-point provenance recorded.",
+        "No source attempts recorded.",
+        "No contact evidence recorded.",
+        "No evidence returned by this source.",
+        "evidence)",
+        "None recorded.",
+    ):
+        assert english_copy not in visible_text
 
 
 def test_html_renders_deterministic_tldr_and_numbered_sections(
