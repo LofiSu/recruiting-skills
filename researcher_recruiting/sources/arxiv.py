@@ -4,9 +4,9 @@ from xml.etree import ElementTree
 import httpx
 
 from researcher_recruiting.models import (
-    PAPER_EMAIL_PROVENANCE,
     AuthorSeed,
     PaperRecord,
+    _paper_email_provenance_marker,
 )
 
 ARXIV_API = "https://export.arxiv.org/api/query"
@@ -97,7 +97,9 @@ def _parse_entry(entry: ElementTree.Element) -> PaperRecord:
             ),
             paper_title=title,
             email_provenance=(
-                PAPER_EMAIL_PROVENANCE if email is not None else None
+                _paper_email_provenance_marker()
+                if email is not None
+                else None
             ),
         )
         for name, affiliation, email in author_data

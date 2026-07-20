@@ -15,6 +15,7 @@ from researcher_recruiting.models import (
     ContactPoint,
     Evidence,
     RunResult,
+    _is_paper_email_provenance,
 )
 from researcher_recruiting.search_links import build_locator_links
 
@@ -50,6 +51,8 @@ CSV_COLUMNS = (
 
 
 def _jsonable(value: Any) -> Any:
+    if _is_paper_email_provenance(value):
+        return None
     if isinstance(value, Enum):
         return value.value
     if is_dataclass(value):

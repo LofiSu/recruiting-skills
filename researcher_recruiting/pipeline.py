@@ -6,13 +6,13 @@ from typing import Any, Iterable, Protocol
 from researcher_recruiting.contacts import attach_contacts
 from researcher_recruiting.identity import resolve_identity
 from researcher_recruiting.models import (
-    PAPER_EMAIL_PROVENANCE,
     AuthorSeed,
     Evidence,
     PaperRecord,
     RunResult,
     SourceResult,
     SourceStatus,
+    _is_paper_email_provenance,
 )
 from researcher_recruiting.search_links import build_locator_links
 from researcher_recruiting.sources.base import collected_at
@@ -148,7 +148,7 @@ class ResearchPipeline:
         if (
             seed.email
             and seed.email.strip()
-            and seed.email_provenance == PAPER_EMAIL_PROVENANCE
+            and _is_paper_email_provenance(seed.email_provenance)
         ):
             timestamp = collected_at()
             evidence_items = (

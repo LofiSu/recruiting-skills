@@ -44,10 +44,8 @@ def test_parse_atom_feed_preserves_only_explicit_author_email():
     )[0]
 
     assert paper.authors[0].email == "Ada@University.Example"
-    assert (
-        paper.authors[0].email_provenance
-        == "arxiv_atom_author_email"
-    )
+    assert paper.authors[0].email_provenance is not None
+    assert "email_provenance" not in repr(paper.authors[0])
     assert paper.authors[1].email is None
     assert paper.authors[1].email_provenance is None
 

@@ -15,6 +15,7 @@ from researcher_recruiting.models import (
     SourceStatus,
 )
 from researcher_recruiting.pipeline import ResearchPipeline
+from researcher_recruiting.sources.arxiv import parse_atom_feed
 
 
 class StaticSource:
@@ -349,23 +350,22 @@ async def test_pipeline_reassociates_verified_homepage_email_to_candidate(
 
 @pytest.mark.asyncio
 async def test_pipeline_starts_author_with_explicit_paper_email_evidence(
-    fake_paper, tmp_path
+    tmp_path,
 ):
-    author = AuthorSeed(
-        name="Ada Lovelace",
-        email="Ada@University.Example",
-        email_provenance="arxiv_atom_author_email",
-        paper_title=fake_paper.title,
-    )
-    paper = PaperRecord(
-        arxiv_id=fake_paper.arxiv_id,
-        title=fake_paper.title,
-        abstract=fake_paper.abstract,
-        submitted_at=fake_paper.submitted_at,
-        categories=fake_paper.categories,
-        authors=(author,),
-        source_url=fake_paper.source_url,
-    )
+    paper = parse_atom_feed(
+        """\
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <entry>
+            <id>http://arxiv.org/abs/1706.03762v7</id>
+            <title>Attention Is All You Need</title>
+            <author>
+              <name>Ada Lovelace</name>
+              <email>Ada@University.Example</email>
+            </author>
+          </entry>
+        </feed>
+        """
+    )[0]
     pipeline = ResearchPipeline(
         paper_resolver=AsyncMock(return_value=paper),
         source_registry=RecordingRegistry(selected=()),
@@ -412,12 +412,20 @@ async def test_pipeline_starts_author_with_explicit_paper_email_evidence(
     assert candidates[0]["email"] == "ada@university.example"
 
 
+@pytest.mark.parametrize(
+    "untrusted_provenance",
+    (None, "arxiv_atom_author_email", object()),
+)
 @pytest.mark.asyncio
-async def test_pipeline_rejects_unproven_programmatic_seed_email(fake_paper):
+async def test_pipeline_rejects_unproven_programmatic_seed_email(
+    fake_paper,
+    untrusted_provenance,
+):
     author = AuthorSeed(
         name="Ada Lovelace",
         email="ada@university.example",
         paper_title=fake_paper.title,
+        email_provenance=untrusted_provenance,
     )
     paper = PaperRecord(
         arxiv_id=fake_paper.arxiv_id,

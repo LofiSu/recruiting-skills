@@ -2,7 +2,7 @@ import csv
 import json
 from dataclasses import replace
 
-from researcher_recruiting.exporters import write_artifacts
+from researcher_recruiting.exporters import _jsonable, write_artifacts
 from researcher_recruiting.models import (
     AuthorSeed,
     ContactKind,
@@ -14,6 +14,7 @@ from researcher_recruiting.models import (
     SourceResult,
     SourceStatus,
 )
+from researcher_recruiting.sources.arxiv import parse_atom_feed
 
 
 def test_write_artifacts_always_creates_five_files(tmp_path, run_result):
@@ -60,6 +61,28 @@ def test_json_artifacts_serialize_enums_and_keep_provenance(
     assert candidates[0]["identity_state"] == "probable"
     assert evidence[0]["source"] == "fixture"
     assert evidence[0]["collected_at"].endswith("Z")
+
+
+def test_jsonable_redacts_opaque_paper_email_provenance():
+    author = parse_atom_feed(
+        """\
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <entry>
+            <id>http://arxiv.org/abs/1706.03762v7</id>
+            <title>Paper</title>
+            <author>
+              <name>Ada Lovelace</name>
+              <email>ada@example.org</email>
+            </author>
+          </entry>
+        </feed>
+        """
+    )[0].authors[0]
+
+    serialized = _jsonable(author)
+
+    assert serialized["email_provenance"] is None
+    json.dumps(serialized)
 
 
 def test_markdown_contains_clickable_source_and_locator_links(

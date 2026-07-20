@@ -2,7 +2,26 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Mapping
 
-PAPER_EMAIL_PROVENANCE = "arxiv_atom_author_email"
+
+class _PaperEmailProvenance:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<opaque-paper-email-provenance>"
+
+    def __deepcopy__(self, memo: object) -> "_PaperEmailProvenance":
+        return self
+
+
+_PAPER_EMAIL_PROVENANCE = _PaperEmailProvenance()
+
+
+def _paper_email_provenance_marker() -> object:
+    return _PAPER_EMAIL_PROVENANCE
+
+
+def _is_paper_email_provenance(value: object | None) -> bool:
+    return value is _PAPER_EMAIL_PROVENANCE
 
 
 class SourceStatus(str, Enum):
@@ -46,7 +65,11 @@ class AuthorSeed:
     coauthors: tuple[str, ...] = ()
     paper_title: str | None = None
     research_terms: tuple[str, ...] = ()
-    email_provenance: str | None = None
+    email_provenance: object | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
 
 @dataclass(frozen=True)
