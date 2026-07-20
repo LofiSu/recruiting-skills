@@ -6,6 +6,7 @@ import pytest
 from researcher_recruiting.exporters import _jsonable, write_artifacts
 from researcher_recruiting.models import (
     AuthorSeed,
+    ContactKind,
     ContactStatus,
     IdentityMatch,
     PaperRecord,
@@ -109,12 +110,12 @@ def test_html_scopes_duplicate_names_by_author_id(
     assert "orcid" in report[second:]
 
 
-def test_html_escapes_content_and_rejects_unsafe_links(
+def test_html_escapes_content_and_omits_unsafe_evidence_url(
     tmp_path, run_result, evidence_factory
 ):
     unsafe = evidence_factory(
-        field="homepage",
-        value='"><script>alert(1)</script>',
+        field="paper_title",
+        value="Research <Lab>",
         url="javascript:alert(2)",
     )
     match = replace(
@@ -130,10 +131,83 @@ def test_html_escapes_content_and_rejects_unsafe_links(
         replace(run_result, matches=(match,)),
         tmp_path,
     )
-    assert "<script>alert(1)</script>" not in report
     assert "<img src=x onerror=alert(3)>" not in report
     assert "javascript:alert(2)" not in report
     assert "&lt;img src=x onerror=alert(3)&gt;" in report
+    assert "Research &lt;Lab&gt;" in report
+
+
+def test_html_omits_malformed_email_instead_of_making_mailto_link(
+    tmp_path, run_result
+):
+    email = replace(
+        next(
+            point
+            for point in run_result.matches[0].contact_points
+            if point.kind is ContactKind.PROFESSIONAL_EMAIL
+        ),
+        value="javascript:alert(1)",
+    )
+    match = replace(
+        run_result.matches[0],
+        contact_points=(email,),
+    )
+
+    report = _report(
+        replace(run_result, matches=(match,)),
+        tmp_path,
+    )
+
+    assert "javascript:alert(1)" not in report
+    assert "mailto:javascript" not in report
+
+
+def test_html_redacts_secrets_from_paper_and_candidate_data(
+    tmp_path, run_result, evidence_factory
+):
+    paper = replace(
+        run_result.paper,
+        title="Report token=paper-secret",
+        abstract="Authorization: Bearer abstract-secret",
+    )
+    evidence = evidence_factory(
+        field="note",
+        value="api_key=evidence-secret",
+    )
+    contact_form = replace(
+        next(
+            point
+            for point in run_result.matches[0].contact_points
+            if point.kind is ContactKind.CONTACT_FORM
+        ),
+        value="https://example.test/contact?client_secret=contact-secret",
+    )
+    match = replace(
+        run_result.matches[0],
+        author=replace(
+            run_result.matches[0].author,
+            affiliation="token=candidate-secret",
+        ),
+        reasons=("api-key=reason-secret",),
+        evidence=(evidence,),
+        contact_points=(contact_form,),
+    )
+
+    report = _report(
+        replace(run_result, paper=paper, matches=(match,)),
+        tmp_path,
+    )
+
+    for secret in (
+        "paper-secret",
+        "abstract-secret",
+        "candidate-secret",
+        "reason-secret",
+        "evidence-secret",
+        "contact-secret",
+    ):
+        assert secret not in report
+    assert "[REDACTED]" in report
 
 
 def test_html_redacts_secret_bearing_source_errors(

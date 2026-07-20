@@ -51,9 +51,15 @@ def _redact(value: Any) -> Any:
             value,
         )
         redacted = re.sub(
-            r"(?i)(?:token|api[_-]?key|client_secret)=([^&\s]+)",
-            lambda match: match.group(0).split("=", 1)[0]
-            + "=[REDACTED]",
+            (
+                r"(?i)(token|api(?:[_-]|%5f|%2d)?key|"
+                r"client(?:_|%5f)secret)(=|%3d)([^&\s]+)"
+            ),
+            lambda match: (
+                match.group(1)
+                + match.group(2)
+                + "[REDACTED]"
+            ),
             redacted,
         )
         return redacted
@@ -244,6 +250,24 @@ def _link(
     )
 
 
+def _email_link(value: str) -> str:
+    if re.fullmatch(
+        r"[^@\s<>:/]+@(?:[^@\s<>:/]+\.)+[^@\s<>:/]+",
+        value,
+    ) is None:
+        return ""
+    return _link(value, f"mailto:{value}", allow_mailto=True)
+
+
+def _is_unsafe_url_value(value: str) -> bool:
+    return urlsplit(value).scheme.casefold() in {
+        "data",
+        "file",
+        "javascript",
+        "vbscript",
+    }
+
+
 def _list_items(items: Iterable[str], empty: str) -> str:
     rendered = [item for item in items if item]
     if not rendered:
@@ -308,6 +332,18 @@ def _report_html(
     source_attempts: list[dict[str, object]],
     generated_at: datetime,
 ) -> str:
+    render_data = _redact(
+        _jsonable(
+            {
+                "paper": run.paper,
+                "candidates": candidates,
+                "source_attempts": source_attempts,
+            }
+        )
+    )
+    paper = render_data["paper"]
+    candidates = render_data["candidates"]
+    source_attempts = render_data["source_attempts"]
     attempts_by_id = {
         item["author_id"]: item
         for item in source_attempts
@@ -321,11 +357,7 @@ def _report_html(
             author_attempts = source_attempts[index - 1]
 
         direct_links = [
-            _link(
-                str(candidate["email"]),
-                f"mailto:{candidate['email']}",
-                allow_mailto=True,
-            )
+            _email_link(str(candidate["email"]))
             if candidate["email"]
             else "",
             _link("Contact form", str(candidate["contact_form"]))
@@ -374,15 +406,14 @@ def _report_html(
 
         evidence_items = []
         for item in candidate["evidence"]:
-            evidence_link = _link(
-                str(item["value"]),
-                str(item["url"]),
-            )
-            if not evidence_link:
+            value = str(item["value"])
+            if _is_unsafe_url_value(value):
                 continue
+            evidence_link = _link(value, str(item["url"]))
+            evidence_value = evidence_link or _text(value)
             evidence_items.append(
                 f"<strong>{_text(item['source'])}</strong> / "
-                f"{_text(item['field'])}: {evidence_link}"
+                f"{_text(item['field'])}: {evidence_value}"
             )
         evidence_html = _list_items(
             evidence_items,
@@ -433,12 +464,12 @@ def _report_html(
 </article>"""
         )
 
-    paper_link = _link("arXiv source", run.paper.source_url)
+    paper_link = _link("arXiv source", paper["source_url"])
     paper_metadata = " · ".join(
         part
         for part in (
-            _text(run.paper.arxiv_id),
-            _text(", ".join(run.paper.categories)),
+            _text(paper["arxiv_id"]),
+            _text(", ".join(paper["categories"])),
             paper_link,
         )
         if part
@@ -449,7 +480,7 @@ def _report_html(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Researcher recruiting report: {_text(run.paper.title)}</title>
+  <title>Researcher recruiting report: {_text(paper["title"])}</title>
   <style>
     :root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
     body {{ margin: 0; background: #f4f6f8; color: #17202a; }}
@@ -489,9 +520,9 @@ def _report_html(
 <main>
   <header class="paper-header">
     <p class="eyebrow">Researcher recruiting report</p>
-    <h1>{_text(run.paper.title)}</h1>
+    <h1>{_text(paper["title"])}</h1>
     <p>{paper_metadata}</p>
-    <p>{_text(run.paper.abstract)}</p>
+    <p>{_text(paper["abstract"])}</p>
     <p class="muted">Generated {_text(generated_at.isoformat())}</p>
   </header>
   <section class="controls" aria-label="Candidate filters">
