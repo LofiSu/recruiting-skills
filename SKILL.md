@@ -1,59 +1,81 @@
 ---
 name: researcher-recruiting-skill
-description: Use when researching every author of an arXiv paper for recruiting, public professional contact discovery, talent sourcing, identity disambiguation, or evidence-backed researcher due diligence.
+description: Use when finding the authors, institutions, public professional contact routes, homepages, GitHub or OpenReview profiles, and evidence for an arXiv paper or exact research-paper title.
 ---
 
 # Researcher Recruiting
 
-Turn an arXiv URL, identifier, or exact title into reproducible,
-evidence-backed recruiting reports. Use the bundled CLI as the source of
-record rather than replacing it with ad hoc searches.
+Return useful author leads quickly. Use the host Agent's native web search and
+browsing tools; never install or invoke a local runtime.
 
 ## Required workflow
 
-1. Read [references/compliance.md](references/compliance.md) before collecting
-   data. Read [references/sources.md](references/sources.md) when selecting,
-   explaining, or troubleshooting sources.
-2. Follow [references/installation.md](references/installation.md) to accept
-   or discover `PYTHON_BIN`, verify Python 3.11 or newer, and install package
-   dependencies with that exact executable. The reference also documents
-   generic, standalone, and optional agent discovery installation paths.
-3. From the skill directory, run:
+1. Read [references/compliance.md](references/compliance.md) and
+   [references/search.md](references/search.md).
+2. Open the official arXiv page. Preserve its exact paper title and complete
+   ordered author list.
+3. Start a roughly 20-second enrichment budget after resolving the paper.
+4. Search all authors in the largest parallel batches the host supports.
+5. Accept a professional field only when a clickable public page supports it.
+6. Stop at the budget. Retain every author and mark unknown values explicitly.
+7. Copy [assets/report-template.html](assets/report-template.html) to
+   `outputs/<arxiv-id>/report.html`, replace the example tokens and row comment
+   with escaped results, and keep the file self-contained.
+8. Return an ordered chat table and a link to the HTML report.
 
-   ```bash
-   "$PYTHON_BIN" scripts/researcher_recruiting.py "<paper>" --output results
-   ```
+## Search contract
 
-4. Add `--refresh` only when fresh data is explicitly requested. Let arXiv
-   categories select field-specific indexes; add `--sources name,name` only
-   for an explicit source override.
-5. Open `report.html` and inspect each author's source-attempt section before
-   interpreting a blank field or missing contact. Distinguish `not_found`,
-   `source_unavailable`, and `blocked_by_robots`.
-6. Retain every paper author, including authors with ambiguous identities,
-   missing contacts, or unavailable sources. Report each author's explicit
-   `contact_status`: `found`, `not_found`, `ambiguous`, or
-   `sources_unavailable`.
-7. Review identity evidence and never upgrade a match based on name alone.
-8. Present `report.html`, mention the run directory, and summarize unavailable
-   sources.
+For each author, issue one focused query:
 
-## Artifact contract
+```text
+"<exact author name>" "<paper title or distinctive acronym>"
+```
 
-Every successful or partial run creates one self-contained file:
+Use at most one follow-up query:
 
-- `report.html`
+```text
+"<exact author name>" (university OR lab OR GitHub OR homepage OR email)
+```
 
-Keep `recruiting_notes` blank unless an assessment is requested. Do not send
-outreach or mutate external profiles.
+Prefer personal, institutional, laboratory, project, GitHub, and OpenReview
+pages. A search snippet may locate a page but cannot alone verify a field.
+Do not repeatedly rewrite failed searches or enumerate guessed URLs.
 
-## Collection boundaries
+## Evidence states
 
-Google Scholar, ResearchGate, Academia.edu, LinkedIn, Maimai, and unlicensed
-commercial indexes are locator-only. Generate locator URLs, but never fetch or
-parse their result or profile pages.
+- `已核验`: the exact person and field are supported by relevant public
+  professional evidence.
+- `可能匹配`: a plausible result exists but identity ambiguity remains.
+- `暂未找到`: no usable result was found inside the time budget.
+- `未执行网页检索`: the host lacks native web search.
 
-Never request cookies, shared-account credentials, CAPTCHA solving, paywall
-bypass, browser-fingerprint evasion, or access-control bypass. If a public
-source fails, retain the author, record the source and contact status, and
-continue without substituting a prohibited scraper.
+Every non-empty institution, email, homepage, GitHub, or OpenReview value must
+have a clickable evidence URL. Never construct an email address from a name or
+institutional convention.
+
+## Host without web search
+
+When native web search is unavailable:
+
+1. Read the official arXiv page when URL access exists.
+2. Preserve every author in paper order.
+3. Generate Google Scholar, LinkedIn, and Maimai locator URLs.
+4. Mark every author `未执行网页检索`.
+5. Still return the chat table and HTML report.
+
+If the arXiv page also cannot be read, report that the paper cannot be resolved
+and do not invent an author list. Never request a local runtime or silently
+substitute a scraper.
+
+## Output contract
+
+Write only `outputs/<arxiv-id>/report.html` for the requested paper. Chat and
+HTML must contain the same ordered authors and core values.
+
+Escape every collected value before inserting it into HTML. Permit links only
+for `https`, `http`, and `mailto`. Keep names and paper titles exactly as the
+source presents them.
+
+The report must remain static: no scripts, search controls, status filters,
+audit toggles, sticky indexes, source-attempt dumps, candidate ratings, or
+automated recruiting recommendations.
