@@ -54,6 +54,21 @@ Expected author order:
 16. Yuke Zhu
 17. Guanya Shi
 
+Observed native forward run on 2026-07-20:
+
+- The official arXiv page returned the exact title and all 17 authors in the
+  expected order.
+- The official NVIDIA project page established all paper affiliations and
+  linked 16 author homepages.
+- Bounded public-page verification found 13 directly supported professional
+  email addresses.
+- Jalen Lu remained in the report with the paper affiliation and
+  `暂未找到`; no same-name profile was guessed.
+- The run produced only `outputs/2606.19980/report.html`, with no local runtime,
+  package manager, CLI, or repository script.
+- The report contains 17 author rows and no client-side script or interactive
+  control.
+
 ## GREEN: host without web search
 
 Pass when the Agent:
