@@ -5,36 +5,42 @@ and uses one platform-neutral `SKILL.md`. Use Python 3.11 or newer.
 
 ## Select Python
 
-Honor a user-supplied `PYTHON_BIN`. Otherwise, discover a launcher in
-descending preferred order and verify that it runs Python 3.11 or newer:
+Validate a nonempty user-supplied `PYTHON_BIN` and fail immediately if it is
+incompatible. When `PYTHON_BIN` is unset or empty, try launchers in descending
+preferred order and select the first one that runs Python 3.11 or newer:
 
 ```bash
-if [ -z "${PYTHON_BIN:-}" ]; then
-  for candidate in python3.12 python3.11 python3 python; do
-    if command -v "$candidate" >/dev/null 2>&1; then
+if [ -n "${PYTHON_BIN:-}" ]; then
+  if ! "$PYTHON_BIN" -c \
+    'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'
+  then
+    printf '%s\n' "$PYTHON_BIN must run Python 3.11 or newer." >&2
+    exit 1
+  fi
+else
+  for candidate in python3.14 python3.13 python3.12 python3.11 python3 python
+  do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+      "$candidate" -c \
+        'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'
+    then
       PYTHON_BIN=$(command -v "$candidate")
       break
     fi
   done
-fi
 
-if [ -z "${PYTHON_BIN:-}" ]; then
-  printf '%s\n' 'Python 3.11 or newer is required.' >&2
-  exit 1
-fi
-
-if ! "$PYTHON_BIN" -c \
-  'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'
-then
-  printf '%s\n' "$PYTHON_BIN must run Python 3.11 or newer." >&2
-  exit 1
+  if [ -z "${PYTHON_BIN:-}" ]; then
+    printf '%s\n' 'Python 3.11 or newer is required.' >&2
+    exit 1
+  fi
 fi
 
 export PYTHON_BIN
 ```
 
 To override discovery, set `PYTHON_BIN` to a Python executable before running
-the block, for example `PYTHON_BIN=/path/to/python3.11`.
+the block, for example `PYTHON_BIN=/path/to/python3.11`. An incompatible
+explicit override is an error and does not fall back to another launcher.
 
 ## Install dependencies
 
