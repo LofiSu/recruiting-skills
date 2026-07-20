@@ -2,12 +2,15 @@ import json
 from dataclasses import replace
 
 import pytest
+from bs4 import BeautifulSoup
 
 from researcher_recruiting.exporters import _jsonable, write_artifacts
 from researcher_recruiting.models import (
     AuthorSeed,
     ContactKind,
+    ContactPoint,
     ContactStatus,
+    Evidence,
     IdentityMatch,
     PaperRecord,
     RunResult,
@@ -106,8 +109,121 @@ def test_html_scopes_duplicate_names_by_author_id(
     first = report.index('id="author-1"')
     second = report.index('id="author-2"')
     assert first < second
-    assert "github" in report[first:second]
-    assert "orcid" in report[second:]
+    first_author = report[first:second]
+    second_author = report[second:]
+    assert "github" in first_author
+    assert "orcid" not in first_author
+    assert "orcid" in second_author
+    assert "github" not in second_author
+
+
+def test_html_renders_nonwinning_source_evidence_under_its_author_attempt(
+    tmp_path, duplicate_name_run
+):
+    nonwinning_evidence = Evidence(
+        source="orcid",
+        field="profile",
+        value="nonwinning-profile-token=source-secret",
+        url="https://orcid.example/0000-0002",
+        collected_at="2026-07-20T01:02:03Z",
+        candidate_id="nonwinning-candidate",
+        metadata={"match": "name-only", "api_key": "metadata-secret"},
+    )
+    second_attempt = replace(
+        duplicate_name_run.source_results[1],
+        status=SourceStatus.OK,
+        evidence=(nonwinning_evidence,),
+    )
+    report = _report(
+        replace(
+            duplicate_name_run,
+            source_results=(
+                duplicate_name_run.source_results[0],
+                second_attempt,
+            ),
+        ),
+        tmp_path,
+    )
+    soup = BeautifulSoup(report, "html.parser")
+    first_author = soup.select_one("#author-1")
+    second_author = soup.select_one("#author-2")
+    assert first_author is not None
+    assert second_author is not None
+    first_attempts = first_author.select(".source-attempt")
+    second_attempts = second_author.select(".source-attempt")
+    assert [item["data-source"] for item in first_attempts] == ["github"]
+    assert [item["data-source"] for item in second_attempts] == ["orcid"]
+    second_text = second_attempts[0].get_text(" ", strip=True)
+    assert "profile" in second_text
+    assert "nonwinning-profile-token=[REDACTED]" in second_text
+    assert "2026-07-20T01:02:03Z" in second_text
+    assert "nonwinning-candidate" in second_text
+    assert "name-only" in second_text
+    assert "metadata-secret" not in report
+    assert "source-secret" not in report
+    assert "nonwinning-profile-token" not in first_author.get_text()
+
+
+def test_html_renders_complete_contact_point_provenance(
+    tmp_path, run_result
+):
+    nested_evidence = Evidence(
+        source="department_directory",
+        field="email",
+        value="ada@university.example",
+        url="https://example.test/directory/ada",
+        collected_at="2026-07-20T02:03:04Z",
+        candidate_id="directory-ada",
+        metadata={"visibility": "public_professional"},
+    )
+    contact = ContactPoint(
+        kind=ContactKind.PROFESSIONAL_EMAIL,
+        value="ada@university.example",
+        source="department_directory",
+        source_url="https://example.test/directory",
+        collected_at="2026-07-20T03:04:05Z",
+        confidence=97,
+        direct=True,
+        evidence=(nested_evidence,),
+        metadata={
+            "visibility": "public_professional",
+            "token": "contact-secret",
+        },
+    )
+    match = replace(
+        run_result.matches[0],
+        contact_points=(contact,),
+    )
+    report = _report(
+        replace(run_result, matches=(match,)),
+        tmp_path,
+    )
+    soup = BeautifulSoup(report, "html.parser")
+    author = soup.select_one("#author-1")
+    assert author is not None
+    provenance = author.select_one(".contact-point")
+    assert provenance is not None
+    text = provenance.get_text(" ", strip=True)
+    for expected in (
+        "professional_email",
+        "ada@university.example",
+        "department_directory",
+        "https://example.test/directory",
+        "2026-07-20T03:04:05Z",
+        "97",
+        "true",
+        "email",
+        "https://example.test/directory/ada",
+        "2026-07-20T02:03:04Z",
+        "directory-ada",
+        "public_professional",
+    ):
+        assert expected in text
+    assert provenance.select_one('a[href="mailto:ada@university.example"]')
+    assert provenance.select_one(
+        'a[href="https://example.test/directory"]'
+    )
+    assert "contact-secret" not in report
 
 
 def test_html_escapes_content_and_omits_unsafe_evidence_url(
@@ -198,6 +314,40 @@ def test_html_omits_malformed_email_instead_of_making_mailto_link(
 
     assert "javascript:alert(1)" not in report
     assert "mailto:javascript" not in report
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "ada@example.test?subject=unsafe",
+        "ada@example.test#fragment",
+        "ada@example.test\x00",
+        "ada@example.test\x1f",
+    ),
+)
+def test_html_omits_email_with_uri_or_control_delimiters(
+    tmp_path, run_result, value
+):
+    email = replace(
+        next(
+            point
+            for point in run_result.matches[0].contact_points
+            if point.kind is ContactKind.PROFESSIONAL_EMAIL
+        ),
+        value=value,
+    )
+    match = replace(
+        run_result.matches[0],
+        contact_points=(email,),
+    )
+
+    report = _report(
+        replace(run_result, matches=(match,)),
+        tmp_path,
+    )
+
+    assert "mailto:" not in report
+    assert value not in report
 
 
 def test_html_redacts_secrets_from_paper_and_candidate_data(

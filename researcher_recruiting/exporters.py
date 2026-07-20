@@ -21,6 +21,15 @@ from researcher_recruiting.search_links import build_locator_links
 
 ARTIFACT_NAMES = ("report.html",)
 
+_SECRET_KEY = re.compile(
+    r"(?i)^(?:authorization|token|api[_-]?key|client[_-]?secret)$"
+)
+_BARE_EMAIL = re.compile(
+    r"[^@\s<>:/?#\[\]\\\x00-\x1f\x7f]+"
+    r"@(?:[^@\s<>:/?#\[\]\\\x00-\x1f\x7f]+\.)+"
+    r"[^@\s<>:/?#\[\]\\\x00-\x1f\x7f]+"
+)
+
 
 def _jsonable(value: Any) -> Any:
     if _is_paper_email_provenance(value):
@@ -64,7 +73,14 @@ def _redact(value: Any) -> Any:
         )
         return redacted
     if isinstance(value, dict):
-        return {key: _redact(item) for key, item in value.items()}
+        return {
+            key: (
+                "[REDACTED]"
+                if _SECRET_KEY.fullmatch(str(key))
+                else _redact(item)
+            )
+            for key, item in value.items()
+        }
     if isinstance(value, list):
         return [_redact(item) for item in value]
     return value
@@ -251,10 +267,7 @@ def _link(
 
 
 def _email_link(value: str) -> str:
-    if re.fullmatch(
-        r"[^@\s<>:/]+@(?:[^@\s<>:/]+\.)+[^@\s<>:/]+",
-        value,
-    ) is None:
+    if _BARE_EMAIL.fullmatch(value) is None:
         return ""
     return _link(value, f"mailto:{value}", allow_mailto=True)
 
@@ -286,6 +299,176 @@ def _list_items(items: Iterable[str], empty: str) -> str:
     if not rendered:
         return f"<p class=\"muted\">{_text(empty)}</p>"
     return "<ul>" + "".join(f"<li>{item}</li>" for item in rendered) + "</ul>"
+
+
+def _display_scalar(value: object) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
+
+
+def _render_metadata(value: object) -> str:
+    if isinstance(value, dict):
+        if not value:
+            return '<span class="muted">None recorded.</span>'
+        return (
+            '<dl class="audit-fields">'
+            + "".join(
+                (
+                    f"<div><dt>{_text(key)}</dt>"
+                    f"<dd>{_render_metadata(item)}</dd></div>"
+                )
+                for key, item in value.items()
+            )
+            + "</dl>"
+        )
+    if isinstance(value, list):
+        if not value:
+            return '<span class="muted">None recorded.</span>'
+        return (
+            "<ol>"
+            + "".join(
+                f"<li>{_render_metadata(item)}</li>" for item in value
+            )
+            + "</ol>"
+        )
+    return _text(_display_scalar(value))
+
+
+def _render_audit_fields(
+    fields: Iterable[tuple[str, str]],
+) -> str:
+    return (
+        '<dl class="audit-fields">'
+        + "".join(
+            f"<div><dt>{_text(label)}</dt><dd>{value}</dd></div>"
+            for label, value in fields
+            if value
+        )
+        + "</dl>"
+    )
+
+
+def _render_evidence_item(
+    item: dict[str, Any],
+    *,
+    css_class: str = "evidence-item",
+) -> str:
+    field = str(item["field"])
+    value = str(item["value"])
+    rendered_value = (
+        ""
+        if _is_unsafe_evidence_url_value(field, value)
+        else _text(value)
+    )
+    evidence_url = _link(str(item["url"]), str(item["url"]))
+    fields = (
+        ("Source", _text(item["source"])),
+        ("Field", _text(field)),
+        ("Value", rendered_value),
+        ("URL", evidence_url),
+        ("Collected at", _text(item["collected_at"])),
+        ("Candidate ID", _text(item["candidate_id"])),
+        ("Metadata", _render_metadata(item["metadata"])),
+    )
+    return (
+        f'<li class="{_text(css_class)}">'
+        f"{_render_audit_fields(fields)}</li>"
+    )
+
+
+def _render_evidence_list(
+    evidence: Iterable[dict[str, Any]],
+    *,
+    css_class: str = "evidence-item",
+    empty: str = "No public identity evidence.",
+) -> str:
+    items = [
+        _render_evidence_item(item, css_class=css_class)
+        for item in evidence
+    ]
+    if not items:
+        return f'<p class="muted">{_text(empty)}</p>'
+    return '<ul class="audit-list">' + "".join(items) + "</ul>"
+
+
+def _render_contact_value(point: dict[str, Any]) -> str:
+    value = str(point["value"])
+    if point["kind"] == ContactKind.PROFESSIONAL_EMAIL.value:
+        return _email_link(value)
+    return _link(value, value)
+
+
+def _render_contact_point(point: dict[str, Any]) -> str:
+    source_url = _link(
+        str(point["source_url"]),
+        str(point["source_url"]),
+    )
+    fields = (
+        ("Kind", _text(point["kind"])),
+        ("Value", _render_contact_value(point)),
+        ("Source", _text(point["source"])),
+        ("Source URL", source_url),
+        ("Collected at", _text(point["collected_at"])),
+        ("Confidence", _text(point["confidence"])),
+        ("Direct", _text(_display_scalar(point["direct"]))),
+        ("Metadata", _render_metadata(point["metadata"])),
+    )
+    nested_evidence = _render_evidence_list(
+        point["evidence"],
+        css_class="contact-evidence",
+        empty="No contact evidence recorded.",
+    )
+    return (
+        '<li class="contact-point">'
+        f"{_render_audit_fields(fields)}"
+        f"<h4>Evidence</h4>{nested_evidence}</li>"
+    )
+
+
+def _render_contact_provenance(
+    contact_points: Iterable[dict[str, Any]],
+) -> str:
+    items = [_render_contact_point(point) for point in contact_points]
+    content = (
+        '<ul class="audit-list">' + "".join(items) + "</ul>"
+        if items
+        else '<p class="muted">No contact-point provenance recorded.</p>'
+    )
+    return (
+        '<details class="contact-provenance">'
+        f"<summary>Contact-point provenance</summary>{content}</details>"
+    )
+
+
+def _render_source_attempt(attempt: dict[str, Any]) -> str:
+    error = (
+        f" — {_text(attempt['error'])}"
+        if attempt["error"]
+        else ""
+    )
+    evidence = _render_evidence_list(
+        attempt["evidence"],
+        css_class="source-evidence",
+        empty="No evidence returned by this source.",
+    )
+    return (
+        '<li class="source-attempt" '
+        f'data-source="{_text(attempt["source"])}">'
+        f"<p><strong>{_text(attempt['source'])}</strong>: "
+        f"{_text(attempt['status'])} "
+        f"({_text(attempt['evidence_count'])} evidence)"
+        f"{error}</p>{evidence}</li>"
+    )
+
+
+def _render_source_attempts(
+    attempts: Iterable[dict[str, Any]],
+) -> str:
+    items = [_render_source_attempt(attempt) for attempt in attempts]
+    if not items:
+        return '<p class="muted">No source attempts recorded.</p>'
+    return '<ul class="audit-list">' + "".join(items) + "</ul>"
 
 
 def _source_result_matches_author(
@@ -323,6 +506,7 @@ def _source_attempt_records(
                     "source": item.source,
                     "status": item.status,
                     "evidence_count": len(item.evidence),
+                    "evidence": item.evidence,
                     "error": item.error,
                 }
                 for item in run.source_results
@@ -417,45 +601,16 @@ def _report_html(
             "No identity reasons recorded.",
         )
 
-        evidence_items = []
-        for item in candidate["evidence"]:
-            value = str(item["value"])
-            if _is_unsafe_evidence_url_value(
-                str(item["field"]),
-                value,
-            ):
-                continue
-            evidence_link = _link(value, str(item["url"]))
-            evidence_value = evidence_link or _text(value)
-            evidence_items.append(
-                f"<strong>{_text(item['source'])}</strong> / "
-                f"{_text(item['field'])}: {evidence_value}"
-            )
-        evidence_html = _list_items(
-            evidence_items,
-            "No public identity evidence.",
+        evidence_html = _render_evidence_list(
+            candidate["evidence"],
         )
-
-        attempt_items = []
-        for attempt in (
+        contact_provenance_html = _render_contact_provenance(
+            candidate["contact_points"],
+        )
+        attempts_html = _render_source_attempts(
             author_attempts["source_attempts"]
             if author_attempts is not None
             else []
-        ):
-            error = (
-                f" — {_text(attempt['error'])}"
-                if attempt["error"]
-                else ""
-            )
-            attempt_items.append(
-                f"<strong>{_text(attempt['source'])}</strong>: "
-                f"{_text(attempt['status'])} "
-                f"({_text(attempt['evidence_count'])} evidence)"
-                f"{error}"
-            )
-        attempts_html = _list_items(
-            attempt_items,
-            "No source attempts recorded.",
         )
 
         cards.append(
@@ -474,6 +629,7 @@ def _report_html(
   </dl>
   <section><h3>Public contacts and profiles</h3>{contact_html}</section>
   <section><h3>Locator-only links</h3>{locator_html}</section>
+  {contact_provenance_html}
   <details><summary>Identity reasons</summary>{reason_html}</details>
   <details><summary>Evidence</summary>{evidence_html}</details>
   <details><summary>Source attempts</summary>{attempts_html}</details>
@@ -516,12 +672,20 @@ def _report_html(
     .facts div {{ background: #f6f8fa; border-radius: .4rem; padding: .75rem; }}
     .facts dd {{ margin: .25rem 0 0; }}
     .link-list {{ display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; }}
+    .audit-list {{ list-style: none; padding: 0; }}
+    .audit-list > li {{ border-left: .2rem solid #dfe4e8;
+      margin: .75rem 0; padding-left: .75rem; }}
+    .audit-fields {{ display: grid; gap: .5rem; }}
+    .audit-fields div {{ display: grid; gap: .25rem;
+      grid-template-columns: minmax(8rem, 12rem) 1fr; }}
+    .audit-fields dd {{ margin: 0; overflow-wrap: anywhere; }}
     details {{ border-top: 1px solid #dfe4e8; margin-top: 1rem; padding-top: 1rem; }}
     summary {{ cursor: pointer; font-weight: 700; }}
     .muted {{ color: #59636e; }}
     [hidden] {{ display: none !important; }}
     @media (max-width: 40rem) {{
       .controls, .facts {{ grid-template-columns: 1fr; }}
+      .audit-fields div {{ grid-template-columns: 1fr; }}
       main {{ width: min(100% - 1rem, 72rem); padding: .5rem 0; }}
     }}
     @media (prefers-color-scheme: dark) {{
@@ -601,7 +765,7 @@ def write_artifacts(run: RunResult, output_root: Path) -> Path:
     try:
         candidates = _candidate_records(run)
         source_attempts = _source_attempt_records(run)
-        (temporary / "report.html").write_text(
+        (temporary / ARTIFACT_NAMES[0]).write_text(
             _report_html(
                 run,
                 candidates,
