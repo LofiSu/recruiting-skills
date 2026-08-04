@@ -1,257 +1,278 @@
-# researcher-recruiting-skill
+# Researcher Recruiting Skills
 
 中文 | [English](#english)
 
-一个面向 Agent Skills 标准的论文作者招聘线索 Skill。给它一篇 arXiv
-论文，它会快速找出完整作者名单、机构、公开职业联系方式、主页、GitHub /
-OpenReview 资料和证据链接，并生成单文件 HTML 报告。
+这个仓库包含两个可以独立安装、也可以协作运行的 Agent Skills：
 
-仓库同时包含可选的 `research-talent-scout/` Skill：它先按毕业年份、学位、
-会议和一作数量从本地索引筛选候选人，再把入围候选人批量交给本 Skill 补全
-公开职业资料。两个 Skill 使用稳定候选人 ID 和显式 deadline 协作，不会把
-论文的其他合作者误加入候选结果。
+| Skill | 适用场景 | 主要输出 |
+| --- | --- | --- |
+| `researcher-recruiting-skill` | 已知一篇 arXiv 论文，调查全部作者 | 作者、机构、主页、公开职业联系方式、GitHub/OpenReview、证据和 HTML 报告 |
+| `research-talent-scout` | 按毕业年份、学位、会议和论文数量批量筛人 | 已确认候选人、待核验候选人、论文统计、毕业证据和覆盖范围 |
 
-默认模式使用宿主 Agent 自带的网页搜索与浏览能力，不安装 Python、Node.js、
-爬虫框架、字体、CDN 或外部服务。
+如果输入是一篇论文，使用第一个 Skill；如果输入是“寻找 2027/2028 届、满足论文门槛的人”，使用第二个 Skill。批量筛选完成后，`research-talent-scout` 可以把入围候选人一次性交给 `researcher-recruiting-skill` 补全公开职业资料。
 
-## 能做什么
+## 工作方式
 
-输入 arXiv URL、arXiv ID 或精确论文标题后，Skill 会返回：
+```text
+单篇论文
+  └─ researcher-recruiting-skill
+       ├─ 获取 arXiv 官方作者顺序
+       ├─ 并行核验公开职业资料
+       └─ 生成单文件 HTML 报告
 
-- arXiv 官方顺序的完整作者列表；
-- best-effort 的机构、个人主页、公开职业邮箱、GitHub、OpenReview；
-- 每个非空字段对应的可点击证据链接；
-- `已核验`、`可能匹配`、`暂未找到`、`未执行网页检索` 状态；
-- 对话里的快速作者表；
-- 单文件报告：`outputs/<arxiv-id>/report.html`；
-- 如果 GitHub 写入权限已授权，自动发布到 GitHub Pages：
-  `https://<owner>.github.io/<repository>/<arxiv-id>/`。
+批量人才条件
+  └─ research-talent-scout
+       ├─ 查询本地 SQLite 索引
+       ├─ 按会议、一作类别、学位和毕业年份筛选
+       ├─ 仅将入围候选人交给 researcher-recruiting-skill
+       └─ 合并为一份证据化结果
+```
 
-默认 enrichment 预算约 20 秒。它会优先返回可用结果，而不是等待所有来源完整审计。
+两个 Skill 通过稳定候选人 ID、唯一 `batch_id` 和明确的 `deadline_at` 协作。资料补全不会扩展到论文的其他合作者，也不能改写原有论文统计、毕业年份状态或更强的既有证据。
+
+## 功能
+
+### 单篇论文作者调查
+
+- 接受 arXiv URL、arXiv ID 或精确论文标题；
+- 保留 arXiv 官方顺序的完整作者列表；
+- best-effort 查找机构、个人主页、公开职业邮箱、GitHub 和 OpenReview；
+- 每个非空字段都附可点击的公开证据；
+- 使用 `已核验`、`可能匹配`、`暂未找到`、`未执行网页检索` 状态；
+- 默认资料补全预算约 20 秒；
+- 生成 `outputs/<arxiv-id>/report.html`；
+- 授权后可发布至 GitHub Pages 的 `gh-pages:<arxiv-id>/index.html`。
+
+### 批量人才筛选
+
+- 按博士/硕士、毕业年份、院校、实验室、会议和作者类别筛选；
+- 支持 `main_first`、`co_first`、`findings`、`workshop`、`short`、`demo` 分类计数；
+- 正确区分“多于 5 篇”和“至少 5 篇”；
+- 将毕业年份分为 `confirmed`、`likely_needs_verification`、`unknown`、`stale` 和 `conflict`；
+- 不会仅凭姓名合并同名研究者；
+- 返回全部索引内匹配者，并显示索引覆盖和新鲜度限制；
+- 使用 SQLite 进行快速查询；真实候选人数据需要通过规范化 JSONL 导入或后续数据连接器建立。
 
 ## 安装
 
-把仓库 clone 或 symlink 到支持 Agent Skills 的目录，然后开启新一轮 Agent 会话。
-
-| 范围 | 路径 |
-| --- | --- |
-| 通用 Agent | `~/.agents/skills/researcher-recruiting-skill/` |
-| Claude Code 个人 | `~/.claude/skills/researcher-recruiting-skill/` |
-| Claude Code 项目 | `.claude/skills/researcher-recruiting-skill/` |
-| OpenCode 个人 | `~/.config/opencode/skills/researcher-recruiting-skill/` |
-| OpenCode 项目 | `.opencode/skills/researcher-recruiting-skill/` |
-| Codex 个人 | `${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill/` |
-
-若要启用批量人才筛选与协作补全，还需把仓库内的第二个 Skill 单独链接到
-同一技能目录：
+Clone 仓库：
 
 ```bash
-ln -s "$PWD" "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
-ln -s "$PWD/research-talent-scout" "${CODEX_HOME:-$HOME/.codex}/skills/research-talent-scout"
+git clone https://github.com/LofiSu/researcher-recruiting-skill.git
+cd researcher-recruiting-skill
 ```
 
-两者职责边界：
-
-- `research-talent-scout`：索引查询、论文统计、毕业年份状态和最终合并；
-- `researcher-recruiting-skill`：对入围候选人做限时公开资料补全；
-- 单篇论文请求仍由原有 paper mode 独立完成，不需要人才索引。
-
-Codex 当前 checkout 可以直接这样接入：
+### Codex：安装两个 Skill
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 ln -s "$PWD" "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
+ln -s "$PWD/research-talent-scout" "${CODEX_HOME:-$HOME/.codex}/skills/research-talent-scout"
 ```
 
-只需要安装这个 Skill。`article-to-html` 风格的 HTML/CSS 已经内嵌在本仓库里，
-不需要再单独安装 `article-to-html`。
+只需要单篇论文作者调查时，可以仅创建第一个链接。批量筛选和自动资料补全需要两个 Skill 都可被宿主 Agent 发现。安装后请开启新一轮 Agent 会话以刷新 Skill 列表。
 
-## 使用
+其他 Agent Skills 宿主同样需要把两个 Skill 分别放入其技能发现目录，例如 `~/.agents/skills/`、`~/.claude/skills/` 或 `.claude/skills/`。
 
-可以直接把论文链接发给 Agent：
+## 使用示例
+
+### 调查一篇论文的全部作者
 
 ```text
 https://arxiv.org/abs/2606.19980
 帮我找这篇论文所有作者的机构、主页、公开职业邮箱和证据链接。
 ```
 
-如果宿主 Agent 支持 Skill 显式调用，也可以写：
+显式调用：
 
 ```text
-Use $researcher-recruiting-skill on
-https://arxiv.org/abs/2606.19980 and find every author's institution,
-homepage, public professional email, and evidence.
+Use $researcher-recruiting-skill on https://arxiv.org/abs/2606.19980.
+Find every author's institution, homepage, public professional email,
+GitHub/OpenReview profile, and evidence.
 ```
 
-Skill 会打开 arXiv，按作者并行搜索，返回聊天表格，并写入：
+### 批量筛选研究人才
 
 ```text
-outputs/<arxiv-id>/report.html
+Use $research-talent-scout to find indexed 2027 and 2028 graduates.
+For PhD candidates require more than 5 qualifying papers; for master's
+candidates require more than 3. Count ACL, ICML, ICLR, NeurIPS, EMNLP,
+CVPR, AAAI, ICCV, MLSys, OSDI, EuroSys, ASPLOS, ISCA, SC, and PPoPP.
+Separate confirmed graduation years from candidates needing verification,
+then enrich only the qualifying candidates with public professional evidence.
 ```
 
-HTML 是静态单文件，包含中文界面、论文概览、作者表、证据链接和使用边界。
+“全部候选人”表示当前索引覆盖范围内的全部匹配者，不代表从实时互联网穷举全球所有研究者。
 
-## GitHub Pages 发布
+## 本地索引快速开始
 
-生成报告不会提交到 `main`。当仓库有可写 GitHub remote 时，Skill 会把报告复制到：
+```bash
+cd research-talent-scout
+
+python3 scripts/init_index.py --db data/candidates.sqlite
+python3 scripts/import_records.py \
+  --db data/candidates.sqlite \
+  --input tests/fixtures/records.jsonl
+
+python3 scripts/query_candidates.py \
+  --db data/candidates.sqlite \
+  --graduation-years 2027,2028 \
+  --degree-threshold phd=5,masters=3 \
+  --strictly-greater \
+  --venues ACL,ICML,ICLR,NeurIPS,EMNLP,CVPR,AAAI,ICCV,MLSys,OSDI,EuroSys,ASPLOS,ISCA,SC,PPoPP \
+  --categories main_first,co_first,findings,workshop,short,demo \
+  --graduation-states confirmed,likely_needs_verification
+```
+
+这里的 fixture 只用于演示和测试，不是真实候选人数据库。
+
+## 验证
+
+从仓库根目录运行：
+
+```bash
+bash tests/verify-all.sh
+```
+
+它会验证原有论文作者 Skill 的静态契约、两个 Skill 的结构，以及 `research-talent-scout` 的索引、导入、查询、证据状态和报告测试。
+
+## GitHub Pages
+
+单篇论文模式生成的报告不会写入 `main`。授权后，报告会发布至：
 
 ```text
-gh-pages:<arxiv-id>/index.html
+branch: gh-pages
+file:   <arxiv-id>/index.html
+URL:    https://<owner>.github.io/<repository>/<arxiv-id>/
 ```
 
-稳定访问地址：
+如果 GitHub 写入、Pages 设置或部署验证不可用，Skill 只返回本地报告，不会虚构线上地址。
 
-```text
-https://<owner>.github.io/<repository>/<arxiv-id>/
-```
+## 数据与合规边界
 
-GitHub Pages 需要一次性设置为从 `gh-pages` 分支根目录部署。首次部署可能慢于
-20 秒搜索结果；如果 GitHub 写入或 Pages 设置不可用，Skill 只返回本地
-`report.html`，不会虚构线上链接。
-
-## 没有网页搜索能力时
-
-如果宿主 Agent 不能搜索网页，Skill 仍会在可访问 arXiv 的前提下保留官方作者名单，
-生成 Google Scholar、LinkedIn、脉脉定位链接，并把作者状态标记为
-`未执行网页检索`。
-
-它不会要求用户安装本地爬虫，也不会静默切换到 Python/Node 采集。
-
-## 数据边界
-
-只收集公开职业信息。邮箱不会根据姓名或机构规则猜测。
-
-Google Scholar、LinkedIn、脉脉、ResearchGate、Academia.edu 等平台可以通过普通公开搜索结果定位；
-如果页面无需登录即可访问，并且能支持身份匹配，可以作为证据。Skill 不登录、不绕过访问控制、
-不解 CAPTCHA、不批量抓取这些平台。搜索片段只能作为发现线索，不能单独作为已核验证据。
-
-输出是人工复核用的研究线索，不是候选人排名、雇佣决策或自动外联系统。
+- 只收集公开职业信息；
+- 不根据姓名或机构规则猜测邮箱；
+- 不登录、不绕过访问控制、不解 CAPTCHA、不批量抓取受限平台；
+- 搜索摘要只能用于发现页面，不能单独作为已核验证据；
+- 同名身份存在歧义时保持 `可能匹配` 或独立记录；
+- 输出用于人工复核，不进行候选人排名、自动雇佣决策或自动外联。
 
 ---
 
 ## English
 
-An Agent Skills-standard workflow for finding researcher recruiting leads from
-an arXiv paper. Given an arXiv paper, it quickly returns the full ordered author
-list, institutions, public professional contact routes, homepages, GitHub /
-OpenReview profiles, and evidence links, then generates a single-file HTML
-report.
+This repository contains two independently installable Agent Skills that can
+also work together:
 
-The default mode uses the host Agent's native web search and browsing tools. It
-does not require Python, Node.js, crawler frameworks, API keys, fonts, CDNs, or
-hosted services.
+| Skill | Use it for | Main output |
+| --- | --- | --- |
+| `researcher-recruiting-skill` | Investigating every author of a known arXiv paper | Authors, affiliations, public professional contacts, profiles, evidence, and an HTML report |
+| `research-talent-scout` | Filtering a cohort by graduation year, degree, venue, and publication thresholds | Confirmed and pending candidates, categorized paper counts, graduation evidence, and index coverage |
 
-## What it returns
+Use the first Skill for a paper-centric request. Use the second for a cohort
+request such as “find 2027/2028 graduates above these publication thresholds.”
+After filtering, the scout can hand exactly one qualifying-candidate batch to
+the recruiting Skill for bounded public-profile enrichment.
 
-For an arXiv URL, arXiv identifier, or exact paper title, the Skill returns:
+## How they collaborate
 
-- the complete author list in official arXiv order;
-- best-effort institutions, professional homepages, public work email, GitHub,
-  and OpenReview profiles;
-- a clickable evidence link for every non-empty professional field;
-- explicit `已核验`, `可能匹配`, `暂未找到`, or `未执行网页检索` states;
-- an immediate chat summary table;
-- one static report at `outputs/<arxiv-id>/report.html`;
-- when GitHub writes are authorized, an automatically published report at
-  `https://<owner>.github.io/<repository>/<arxiv-id>/`.
+`research-talent-scout` owns indexed discovery, deterministic filtering,
+graduation/publication verification, and the single final result.
+`researcher-recruiting-skill` owns only bounded public-profile enrichment for
+the stable candidate IDs it receives.
 
-The native enrichment phase targets approximately 20 seconds. It returns partial
-results at the time budget instead of waiting for exhaustive source auditing.
+The handoff uses a unique `batch_id`, stable `candidate_id` values, and an
+absolute `deadline_at`. Enrichment never expands to coauthors, re-filters the
+cohort, or overwrites stronger graduation or publication evidence.
+
+## Features
+
+### Paper author investigation
+
+- accepts an arXiv URL, identifier, or exact paper title;
+- preserves the complete official author order;
+- finds best-effort affiliations, homepages, public work email, GitHub, and
+  OpenReview profiles;
+- requires a clickable public source for every non-empty field;
+- uses explicit verified, possible-match, not-found, and no-search states;
+- targets approximately 20 seconds for native web enrichment;
+- writes `outputs/<arxiv-id>/report.html` and can publish it to GitHub Pages
+  when authorized.
+
+### Cohort talent scouting
+
+- filters by degree, graduation year, institution, lab, venue, and authorship
+  category;
+- counts main first, evidenced co-first, Findings, workshop, short, and demo
+  papers separately;
+- distinguishes “more than N” from “at least N”;
+- preserves confirmed, inferred, unknown, stale, and conflicting graduation
+  evidence;
+- keeps ambiguous same-name researchers separate;
+- returns all matches inside declared index coverage and reports freshness
+  limitations;
+- uses a lightweight SQLite index for fast repeated queries.
+
+The repository ships the indexing and query engine plus synthetic fixtures. It
+does not ship a real candidate database; normalized real-world records or data
+source connectors must populate the index.
 
 ## Installation
 
-Clone or symlink this repository into a supported Agent Skills discovery
-directory, then start a fresh Agent turn so Skill discovery refreshes.
-
-| Scope | Location |
-| --- | --- |
-| Generic shared | `~/.agents/skills/researcher-recruiting-skill/` |
-| Claude Code personal | `~/.claude/skills/researcher-recruiting-skill/` |
-| Claude Code project | `.claude/skills/researcher-recruiting-skill/` |
-| OpenCode personal | `~/.config/opencode/skills/researcher-recruiting-skill/` |
-| OpenCode project | `.opencode/skills/researcher-recruiting-skill/` |
-| Codex personal | `${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill/` |
-
-To connect the current checkout to Codex without copying files:
-
 ```bash
+git clone https://github.com/LofiSu/researcher-recruiting-skill.git
+cd researcher-recruiting-skill
+
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 ln -s "$PWD" "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
+ln -s "$PWD/research-talent-scout" "${CODEX_HOME:-$HOME/.codex}/skills/research-talent-scout"
 ```
 
-Install only this Skill. The `article-to-html`-style HTML/CSS presentation layer
-is embedded in this repository, so `article-to-html` is not a separate runtime
-dependency.
+Install only the first link if you need paper author investigation without
+cohort filtering. Restart the Agent session after installation so Skill
+discovery refreshes.
+
+Other Agent Skills hosts can link both directories into their corresponding
+skill discovery directory, such as `~/.agents/skills/`, `~/.claude/skills/`, or
+`.claude/skills/`.
 
 ## Usage
 
-Send the paper directly:
+Paper mode:
 
 ```text
-https://arxiv.org/abs/2606.19980
-Find every author's institution, homepage, public professional email, and
-evidence links.
+Use $researcher-recruiting-skill on https://arxiv.org/abs/2606.19980.
+Find every author's institution, homepage, public professional email,
+GitHub/OpenReview profile, and evidence.
 ```
 
-If the host Agent supports explicit Skill invocation:
+Cohort mode:
 
 ```text
-Use $researcher-recruiting-skill on
-https://arxiv.org/abs/2606.19980 and find every author's institution,
-homepage, public professional email, and evidence.
+Use $research-talent-scout to find indexed 2027/2028 PhD and master's
+candidates above configurable first-author venue thresholds. Keep confirmed
+and pending graduation evidence separate, then enrich only the qualifiers with
+public professional evidence.
 ```
 
-The Skill opens arXiv, batches author searches with the Agent's own web tools,
-returns the chat table, and creates:
+“All candidates” means all matches within declared index coverage, not an
+exhaustive live-web census of every researcher.
 
-```text
-outputs/<arxiv-id>/report.html
+## Verification
+
+Run from the repository root:
+
+```bash
+bash tests/verify-all.sh
 ```
 
-The report is a static single-file HTML page with a Chinese interface, paper
-overview, author table, evidence links, and data-boundary notes.
-
-## GitHub Pages
-
-Generated reports stay out of `main`. When the repository has an authorized
-GitHub remote, the Skill copies the finished report to:
-
-```text
-gh-pages:<arxiv-id>/index.html
-```
-
-Stable URL:
-
-```text
-https://<owner>.github.io/<repository>/<arxiv-id>/
-```
-
-GitHub Pages must be configured once to deploy from the root of the `gh-pages`
-branch. First-time deployment can take longer than the 20-second search result.
-If GitHub writes or Pages settings are unavailable, the Skill returns the local
-`report.html` and does not invent an online URL.
-
-## Host without web search
-
-When an Agent cannot search the web, the Skill still preserves the official
-arXiv author list when page access exists, generates Google Scholar, LinkedIn,
-and Maimai locator URLs, marks rows `未执行网页检索`, and creates the chat and
-HTML outputs.
-
-It does not ask users to install a local crawler and does not silently switch to
-Python or Node.js collection.
+This validates both Skill structures, the original paper-mode contract, and the
+scout's deterministic index, import, query, evidence-state, and rendering tests.
 
 ## Data boundaries
 
-Only public professional information is collected. Email addresses are never
-guessed from names or institutional conventions.
-
-Google Scholar, LinkedIn, Maimai, ResearchGate, and Academia.edu may be opened
-through ordinary public search results. If a page is accessible without login
-and supports identity matching, it may be used as evidence. The Skill does not
-log in, bypass access controls, solve CAPTCHAs, or run batch scrapers against
-those platforms. Search snippets are discovery aids, not verified evidence by
-themselves.
-
-The output is a research lead for human review, not a candidate ranking,
-employment decision, or automated outreach system.
+Only public professional information is collected. The Skills never guess
+email addresses, log in to restricted platforms, bypass access controls, solve
+CAPTCHAs, or treat search snippets as verified evidence. Outputs are research
+leads for human review, not candidate rankings, employment decisions, or
+automated outreach.
