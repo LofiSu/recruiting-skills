@@ -1,8 +1,11 @@
-# Researcher Recruiting Skills
+# 招聘 Skills · Recruiting Skills
 
 中文 | [English](#english)
 
-这个仓库包含两个可以独立安装、也可以协作运行的 Agent Skills：
+这是一个招聘相关 Agent Skills 的长期集合。以后用于人才发现、研究者调查、
+候选人资料补全、招聘流程辅助等场景的 Skill 都集中维护在这个仓库中。
+
+当前包含两个可以独立安装、也可以协作运行的 Skills：
 
 | Skill | 适用场景 | 主要输出 |
 | --- | --- | --- |
@@ -29,6 +32,16 @@
 ```
 
 两个 Skill 通过稳定候选人 ID、唯一 `batch_id` 和明确的 `deadline_at` 协作。资料补全不会扩展到论文的其他合作者，也不能改写原有论文统计、毕业年份状态或更强的既有证据。
+
+## 仓库约定
+
+- 根目录保留 `researcher-recruiting-skill`，兼容现有安装方式；
+- 其他招聘 Skill 使用独立的 `<skill-name>/SKILL.md` 子目录；
+- 每个 Skill 可以独立安装、触发和验证；
+- 跨 Skill 协作必须定义稳定输入、输出、责任边界和失败降级；
+- 通用合规原则保持一致：只处理公开职业信息，不执行招聘排名、自动雇佣决策或自动外联。
+
+新增 Skill 后，需要在顶部目录表、安装说明和统一验证脚本中登记。
 
 ## 功能
 
@@ -161,8 +174,12 @@ URL:    https://<owner>.github.io/<repository>/<arxiv-id>/
 
 ## English
 
-This repository contains two independently installable Agent Skills that can
-also work together:
+This repository is the long-term home for recruiting-related Agent Skills,
+including talent discovery, researcher investigation, candidate enrichment,
+and recruiting workflow support.
+
+It currently contains two independently installable Skills that can also work
+together:
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
@@ -184,6 +201,17 @@ the stable candidate IDs it receives.
 The handoff uses a unique `batch_id`, stable `candidate_id` values, and an
 absolute `deadline_at`. Enrichment never expands to coauthors, re-filters the
 cohort, or overwrites stronger graduation or publication evidence.
+
+## Repository convention
+
+- the repository root remains `researcher-recruiting-skill` for installation compatibility;
+- additional recruiting Skills live in independent `<skill-name>/SKILL.md` directories;
+- every Skill must remain independently installable, triggerable, and verifiable;
+- cross-Skill workflows must define stable inputs, outputs, ownership, and failure behavior;
+- shared compliance rules permit only public professional information and prohibit candidate ranking, automated employment decisions, and automated outreach.
+
+Register every new Skill in the catalog table, installation instructions, and
+the repository-wide verification command.
 
 ## Features
 
