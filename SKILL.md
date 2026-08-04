@@ -38,8 +38,8 @@ This Skill contains its complete report design. Do not install or invoke
 10. Automatically attempt the publication workflow in
    [references/publishing.md](references/publishing.md) when an authorized
    GitHub remote and write-capable host tool are available.
-11. Return an ordered chat table, the local report link, and the verified online
-   URL when publication succeeds.
+11. Return an ordered chat table, the local report link, the verified report
+   URL, and the verified collection homepage URL when publication succeeds.
 
 Do not delay the author result to perform exhaustive profile auditing.
 GitHub Pages propagation can take longer than the enrichment budget; distinguish
@@ -135,7 +135,8 @@ only the paper overview, ordered author entries, public contact paths,
 verification states, evidence boundaries, and direct references.
 
 Automatic publication copies the finished file to
-`<arxiv-id>/index.html` on `gh-pages`; it must not add reports to `main`.
+`<arxiv-id>/index.html` on `gh-pages` and refreshes the branch's root
+`index.html` report list; it must not add reports to `main`.
 If publication cannot run or cannot be verified, return the local report
 immediately and state the concrete limitation. Never fabricate or pre-announce
 a live URL.

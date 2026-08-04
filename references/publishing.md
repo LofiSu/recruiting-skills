@@ -7,6 +7,7 @@ The publication target is:
 branch: gh-pages
 file:   <arxiv-id>/index.html
 URL:    https://<owner>.github.io/<repository>/<arxiv-id>/
+home:   https://<owner>.github.io/<repository>/
 ```
 
 ## Preconditions
@@ -60,10 +61,11 @@ fi
 mkdir -p "$site_dir/<arxiv-id>"
 cp "$report" "$site_dir/<arxiv-id>/index.html"
 : > "$site_dir/.nojekyll"
+python3 scripts/build_pages_index.py "$site_dir"
 
 (
   cd "$site_dir"
-  git add .nojekyll "<arxiv-id>/index.html"
+  git add .nojekyll index.html "<arxiv-id>/index.html"
   if ! git diff --cached --quiet; then
     git commit -m "publish: update <arxiv-id> report"
     git push origin gh-pages
@@ -80,10 +82,14 @@ arXiv identifier composed of ASCII digits, dots, and an optional `v` plus digits
 When Git shell access is unavailable but a GitHub tool can create commits:
 
 1. read the `gh-pages` branch head when it exists;
-2. create or update only `<arxiv-id>/index.html`;
-3. include `.nojekyll` when initializing the branch;
-4. commit to `gh-pages`;
-5. configure GitHub Pages with branch `gh-pages` and path `/` when the tool
+2. preserve the existing branch tree and create or update
+   `<arxiv-id>/index.html`;
+3. enumerate safe report directories already present on the branch and render
+   root `index.html` from `assets/pages-index-template.html` with the same
+   escaped, sorted relative links produced by `scripts/build_pages_index.py`;
+4. include `.nojekyll` when initializing the branch;
+5. commit the report and root homepage to `gh-pages`;
+6. configure GitHub Pages with branch `gh-pages` and path `/` when the tool
    exposes repository Pages settings.
 
 If the host tool cannot configure Pages, publish the branch and tell the user
@@ -110,13 +116,17 @@ Branch: gh-pages / (root)
 
 ## Verification
 
-After a successful push, derive the URL from the actual GitHub owner and
-repository name. Request the exact report URL with bounded retries.
+After a successful push, derive the report URL and collection homepage URL from
+the actual GitHub owner and repository name. Request both URLs with bounded
+retries.
 
 Publication is verified only when:
 
 - the response is HTTP `200`; and
 - the returned HTML contains the exact escaped paper title or arXiv identifier.
+
+The collection homepage is verified only when it returns HTTP `200` and
+contains both `researcher-recruiting-skill` and `research-talent-scout`.
 
 GitHub Pages deployment is asynchronous and may take tens of seconds on a first
 publish. Keep retries bounded. If verification times out, return the local report,

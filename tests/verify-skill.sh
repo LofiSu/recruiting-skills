@@ -6,6 +6,7 @@ skill="$root/SKILL.md"
 template="$root/assets/report-template.html"
 publishing="$root/references/publishing.md"
 search="$root/references/search.md"
+verify_all="$root/tests/verify-all.sh"
 
 require() {
   file=$1
@@ -29,6 +30,10 @@ require "$search" 'Restricted-platform search' 'restricted platform search guida
 require "$skill" 'references/publishing.md' 'publishing instructions'
 require "$skill" 'gh-pages' 'dedicated Pages branch'
 require "$publishing" '<arxiv-id>/index.html' 'stable report path'
+require "$publishing" 'scripts/build_pages_index.py' 'Pages homepage generator'
+require "$publishing" 'git add .nojekyll index.html "<arxiv-id>/index.html"' 'homepage staged with report'
+require "$skill" 'collection homepage URL' 'homepage returned after publication'
+require "$verify_all" 'python3 -m unittest tests.test_build_pages_index -v' 'homepage tests in full verification'
 
 if grep -Eqi '<script|<link[^>]+stylesheet|url\([[:space:]]*["'"'"']?https?://' "$template"; then
   printf 'FAIL: template contains an external runtime or asset\n' >&2
