@@ -1,5 +1,9 @@
 # Native web search
 
+Paper mode uses the author query below. Candidate batch mode uses the same
+bounded evidence rules but searches only the stable candidate IDs supplied by
+`references/collaboration.md`; it never expands to coauthors.
+
 ## Time budget
 
 Resolve the official arXiv page first, then spend approximately 20 seconds on

@@ -1,6 +1,6 @@
 ---
 name: researcher-recruiting-skill
-description: Use when finding the authors, institutions, public professional contact routes, homepages, GitHub or OpenReview profiles, and evidence for an arXiv paper or exact research-paper title.
+description: Use when finding authors and public professional evidence for an arXiv paper or exact paper title, or when enriching a filtered batch of researcher candidates handed off by research-talent-scout.
 ---
 
 # Researcher Recruiting
@@ -8,25 +8,37 @@ description: Use when finding the authors, institutions, public professional con
 Return useful author leads quickly. Use the host Agent's native web search and
 browsing tools; never install or invoke a local language runtime.
 
+Choose exactly one mode:
+
+- **Paper mode:** resolve one paper, enrich its complete ordered author list,
+  and generate the embedded HTML report.
+- **Candidate batch mode:** accept a `candidate_enrichment_batch` from
+  `research-talent-scout`, enrich only those stable candidate IDs, and return
+  one machine-readable batch. Do not generate per-paper reports.
+
 This Skill contains its complete report design. Do not install or invoke
 `article-to-html`; its paper-style presentation layer is already embedded in
 [assets/report-template.html](assets/report-template.html).
 
 ## Required workflow
 
-1. Read [references/compliance.md](references/compliance.md) and
-   [references/search.md](references/search.md).
-2. Open the official arXiv page. Preserve its exact paper title and complete
+1. Read [references/compliance.md](references/compliance.md),
+   [references/search.md](references/search.md), and
+   [references/collaboration.md](references/collaboration.md).
+2. Select paper mode or candidate batch mode from the input shape.
+3. For candidate batch mode, follow `references/collaboration.md` and return
+   the batch result immediately; steps 4–11 below apply only to paper mode.
+4. Open the official arXiv page. Preserve its exact paper title and complete
    ordered author list.
-3. Start a roughly 20-second enrichment budget after resolving the paper.
-4. Search all authors in the largest parallel batches the host supports.
-5. Accept a professional field only when a clickable public page supports it.
-6. Stop at the budget. Retain every author and mark unknown values explicitly.
-7. Generate the single local report described in **Report composition**.
-8. Automatically attempt the publication workflow in
+5. Start a roughly 20-second enrichment budget after resolving the paper.
+6. Search all authors in the largest parallel batches the host supports.
+7. Accept a professional field only when a clickable public page supports it.
+8. Stop at the budget. Retain every author and mark unknown values explicitly.
+9. Generate the single local report described in **Report composition**.
+10. Automatically attempt the publication workflow in
    [references/publishing.md](references/publishing.md) when an authorized
    GitHub remote and write-capable host tool are available.
-9. Return an ordered chat table, the local report link, and the verified online
+11. Return an ordered chat table, the local report link, and the verified online
    URL when publication succeeds.
 
 Do not delay the author result to perform exhaustive profile auditing.

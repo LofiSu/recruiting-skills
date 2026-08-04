@@ -6,6 +6,11 @@
 论文，它会快速找出完整作者名单、机构、公开职业联系方式、主页、GitHub /
 OpenReview 资料和证据链接，并生成单文件 HTML 报告。
 
+仓库同时包含可选的 `research-talent-scout/` Skill：它先按毕业年份、学位、
+会议和一作数量从本地索引筛选候选人，再把入围候选人批量交给本 Skill 补全
+公开职业资料。两个 Skill 使用稳定候选人 ID 和显式 deadline 协作，不会把
+论文的其他合作者误加入候选结果。
+
 默认模式使用宿主 Agent 自带的网页搜索与浏览能力，不安装 Python、Node.js、
 爬虫框架、字体、CDN 或外部服务。
 
@@ -36,6 +41,20 @@ OpenReview 资料和证据链接，并生成单文件 HTML 报告。
 | OpenCode 个人 | `~/.config/opencode/skills/researcher-recruiting-skill/` |
 | OpenCode 项目 | `.opencode/skills/researcher-recruiting-skill/` |
 | Codex 个人 | `${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill/` |
+
+若要启用批量人才筛选与协作补全，还需把仓库内的第二个 Skill 单独链接到
+同一技能目录：
+
+```bash
+ln -s "$PWD" "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
+ln -s "$PWD/research-talent-scout" "${CODEX_HOME:-$HOME/.codex}/skills/research-talent-scout"
+```
+
+两者职责边界：
+
+- `research-talent-scout`：索引查询、论文统计、毕业年份状态和最终合并；
+- `researcher-recruiting-skill`：对入围候选人做限时公开资料补全；
+- 单篇论文请求仍由原有 paper mode 独立完成，不需要人才索引。
 
 Codex 当前 checkout 可以直接这样接入：
 

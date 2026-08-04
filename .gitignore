@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .env
 *.sqlite3
+*.sqlite
 results/
 dist/
 outputs/
