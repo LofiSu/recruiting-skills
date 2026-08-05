@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="招聘相关 Agent Skills：研究者发现、候选人筛选与公开职业资料核验。">
+  <title>招聘 Skills · Recruiting Skills</title>
+  <style>
+    :root { color-scheme: light; --ink:#17211b; --muted:#5d6c63; --paper:#f7f4ec; --card:#fffdf7; --line:#d9d4c7; --accent:#146c43; --accent-2:#dff3e8; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    .shell { width:min(1040px,calc(100% - 32px)); margin:0 auto; padding:72px 0 56px; }
+    .eyebrow { margin:0 0 12px; color:var(--accent); font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    h1 { max-width:780px; margin:0; font:700 clamp(2.5rem,7vw,5.8rem)/.98 ui-serif,Georgia,"Songti SC",serif; letter-spacing:-.045em; }
+    .lead { max-width:720px; margin:24px 0 44px; color:var(--muted); font-size:1.12rem; }
+    h2 { margin:54px 0 18px; font-size:1.45rem; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    .card { display:flex; flex-direction:column; min-height:270px; padding:28px; border:1px solid var(--line); border-radius:20px; background:var(--card); box-shadow:0 12px 32px rgba(35,46,39,.06); }
+    .tag { align-self:flex-start; padding:4px 10px; border-radius:999px; background:var(--accent-2); color:var(--accent); font-size:.78rem; font-weight:800; }
+    .card h3 { margin:22px 0 10px; font-size:1.25rem; }
+    .card p { margin:0 0 20px; color:var(--muted); }
+    .card a { margin-top:auto; font-weight:750; }
+    pre { overflow:auto; margin:18px 0; padding:20px; border-radius:14px; background:#17211b; color:#eef8f1; font-size:.9rem; }
+    .reports { padding:26px 28px; border:1px solid var(--line); border-radius:18px; background:rgba(255,253,247,.68); }
+    .report-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px 28px; margin:0; padding-left:20px; }
+    .empty { margin:0; color:var(--muted); }
+    footer { margin-top:52px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+    @media (max-width:700px) { .shell{padding-top:42px}.grid{grid-template-columns:1fr}.card{min-height:auto} }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <p class="eyebrow">Open recruiting toolkit</p>
+    <h1>招聘 Skills<br>Recruiting Skills</h1>
+    <p class="lead">一套协作式研究人才发现工具：先快速筛选符合毕业年份和论文条件的候选人，再补全可核验的公开职业资料。</p>
+
+    <section aria-labelledby="skills-title">
+      <h2 id="skills-title">安装与使用</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="tag">Paper → Authors</span>
+          <h3>researcher-recruiting-skill</h3>
+          <p>从一篇 arXiv 论文出发，查找全部作者的机构、主页、公开职业联系方式和证据。</p>
+          <a href="https://github.com/LofiSu/recruiting-skills">查看安装与使用说明 →</a>
+        </article>
+        <article class="card">
+          <span class="tag">Criteria → Candidates</span>
+          <h3>research-talent-scout</h3>
+          <p>按毕业年份、学位、顶会和一作数量快速筛选候选人，并区分已确认与待核验毕业信息。</p>
+          <a href="https://github.com/LofiSu/recruiting-skills/tree/main/research-talent-scout">查看 Skill →</a>
+        </article>
+      </div>
+      <pre><code>git clone https://github.com/LofiSu/recruiting-skills.git
+cd recruiting-skills
+bash tests/verify-all.sh</code></pre>
+    </section>
+
+    <section aria-labelledby="reports-title">
+      <h2 id="reports-title">已发布报告</h2>
+      <div class="reports">
+        <ul class="report-list">
+          <li><a href="2606.19980/">arXiv 2606.19980</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <footer>只处理公开职业信息。结果用于人工复核，不进行候选人排名、自动雇佣决策或自动外联。</footer>
+  </main>
+</body>
+</html>
