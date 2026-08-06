@@ -71,8 +71,8 @@
 Clone 仓库：
 
 ```bash
-git clone https://github.com/LofiSu/researcher-recruiting-skill.git
-cd researcher-recruiting-skill
+git clone https://github.com/LofiSu/recruiting-skills.git
+cd recruiting-skills
 ```
 
 ### Codex：安装两个 Skill
@@ -248,8 +248,8 @@ source connectors must populate the index.
 ## Installation
 
 ```bash
-git clone https://github.com/LofiSu/researcher-recruiting-skill.git
-cd researcher-recruiting-skill
+git clone https://github.com/LofiSu/recruiting-skills.git
+cd recruiting-skills
 
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 ln -s "$PWD" "${CODEX_HOME:-$HOME/.codex}/skills/researcher-recruiting-skill"
