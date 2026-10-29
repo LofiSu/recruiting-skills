@@ -1,0 +1,36 @@
+name: Skill bug / 技能缺陷
+description: Report a broken skill contract, script, fixture, or verification failure. 报告技能契约、脚本、示例数据或验证失败。
+title: "[bug] "
+body:
+  - type: dropdown
+    id: skill
+    attributes:
+      label: Skill
+      description: Which package is affected? 受影响的是哪个 Skill？
+      options:
+        - researcher-recruiting-skill
+        - research-talent-scout
+        - repository / docs / CI
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened
+      description: Expected behavior and actual behavior. 期望行为与实际行为。
+      placeholder: verify-all.sh failed at ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Commands, prompt, and fixture path. Use synthetic records such as research-talent-scout/tests/fixtures/records.jsonl. Do not paste private candidate data. 请使用合成数据，不要粘贴真实候选人隐私。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Host (Codex, Claude, Cursor, or CI), OS, and Python version.
+      placeholder: Ubuntu 24.04, Python 3.12, GitHub Actions

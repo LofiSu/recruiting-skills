@@ -54,8 +54,10 @@ The source branch remains clean:
 - `main` stores the portable Skill and its embedded HTML template.
 - generated reports are published to the dedicated `gh-pages` branch.
 - each report is stored as `<arxiv-id>/index.html` on that branch.
-- the stable URL is
-  `https://lofisu.github.io/researcher-recruiting-skill/<arxiv-id>/`.
+- the stable URL pattern is
+  `https://<owner>.github.io/<repository>/<arxiv-id>/`.
+  For this repository that is
+  `https://lofisu.github.io/recruiting-skills/<arxiv-id>/`.
 
 When the Agent has GitHub credentials and the user has selected automatic
 publication, it generates the report and updates `gh-pages`. If publishing is

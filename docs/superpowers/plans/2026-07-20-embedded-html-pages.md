@@ -237,7 +237,8 @@ authors, clickable evidence, and a faithful article-to-html visual system.
 
 **Interfaces:**
 - Consumes: `outputs/2606.19980/report.html`.
-- Produces: `https://lofisu.github.io/researcher-recruiting-skill/2606.19980/`.
+- Produces: `https://lofisu.github.io/recruiting-skills/2606.19980/`
+  (current repository name; earlier drafts used `researcher-recruiting-skill`).
 
 - [ ] **Step 1: Run all local verification**
 

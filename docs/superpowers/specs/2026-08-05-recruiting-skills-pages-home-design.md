@@ -27,7 +27,7 @@
 
 首页按以下顺序展示：
 
-1. 仓库定位：招聘相关 Codex Skills 集合。
+1. 仓库定位：招聘相关 Agent Skills 集合（Codex、Claude、Cursor 等宿主）。仓库名是 `LofiSu/recruiting-skills`。
 2. 两个协作 Skill：
    - `researcher-recruiting-skill`：从论文出发发现作者、机构和公开职业联系渠道。
    - `research-talent-scout`：按毕业年份、学位和顶会一作数量筛选候选人，并保留证据等级。

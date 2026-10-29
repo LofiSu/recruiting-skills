@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributing guide / 贡献说明
+    url: https://github.com/LofiSu/recruiting-skills/blob/main/CONTRIBUTING.md
+    about: Read the skill boundaries and verification command before opening a pull request.
