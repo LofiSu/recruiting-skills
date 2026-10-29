@@ -1,0 +1,17 @@
+{
+  "meta": {"count": 2},
+  "results": [
+    {
+      "id": "https://openalex.org/S9990000001",
+      "display_name": "Neural Information Processing Systems",
+      "alternate_titles": ["NeurIPS", "NIPS"],
+      "type": "conference"
+    },
+    {
+      "id": "https://openalex.org/S9990000002",
+      "display_name": "Journal of Unrelated Studies",
+      "alternate_titles": [],
+      "type": "journal"
+    }
+  ]
+}

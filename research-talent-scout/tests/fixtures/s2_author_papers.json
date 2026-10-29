@@ -1,0 +1,42 @@
+{
+  "offset": 0,
+  "data": [
+    {
+      "paperId": "aaa111",
+      "title": "Fixture S2 NeurIPS Paper",
+      "year": 2024,
+      "venue": "NeurIPS",
+      "publicationVenue": {
+        "name": "Neural Information Processing Systems",
+        "alternate_names": ["NeurIPS"],
+        "type": "conference"
+      },
+      "url": "https://www.semanticscholar.org/paper/aaa111",
+      "externalIds": {"ArXiv": "2401.00001"},
+      "openAccessPdf": {"url": "https://example.org/s2-fixture.pdf"},
+      "authors": [
+        {
+          "authorId": "1111111",
+          "name": "Cara Fixture",
+          "affiliations": ["Example University"],
+          "homepage": "https://www.semanticscholar.org/author/1111111",
+          "email": "cara@example.edu"
+        }
+      ]
+    },
+    {
+      "paperId": "ccc333",
+      "title": "Fixture Workshop Paper",
+      "year": 2025,
+      "venue": "NeurIPS Workshops",
+      "publicationVenue": {
+        "name": "Neural Information Processing Systems",
+        "alternate_names": ["NeurIPS"]
+      },
+      "url": "https://www.semanticscholar.org/paper/ccc333",
+      "authors": [
+        {"authorId": "1111111", "name": "Cara Fixture", "affiliations": ["Example University"]}
+      ]
+    }
+  ]
+}

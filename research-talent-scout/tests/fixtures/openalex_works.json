@@ -1,0 +1,70 @@
+{
+  "meta": {"count": 2, "next_cursor": "cursor-2"},
+  "results": [
+    {
+      "id": "https://openalex.org/W1000000001",
+      "title": "Fixture NeurIPS Paper",
+      "publication_year": 2024,
+      "doi": "https://doi.org/10.0000/fixture.neurips",
+      "primary_location": {
+        "source": {
+          "id": "https://openalex.org/S9990000001",
+          "display_name": "Neural Information Processing Systems"
+        },
+        "landing_page_url": "https://example.org/fixture-neurips"
+      },
+      "open_access": {"oa_url": "https://example.org/fixture-neurips.pdf"},
+      "authorships": [
+        {
+          "author_position": "first",
+          "author": {
+            "id": "https://openalex.org/A5000000001",
+            "display_name": "Ada Fixture",
+            "orcid": null
+          },
+          "institutions": [{"display_name": "Example University"}],
+          "raw_affiliation_strings": ["Example University AI Lab"]
+        },
+        {
+          "author_position": "middle",
+          "author": {
+            "id": "https://openalex.org/A5000000002",
+            "display_name": "Ben Fixture",
+            "orcid": null
+          },
+          "institutions": [{"display_name": "Other Institute"}],
+          "raw_affiliation_strings": []
+        },
+        {
+          "author_position": "last",
+          "author": {"id": null, "display_name": "No Id"},
+          "institutions": [],
+          "raw_affiliation_strings": []
+        }
+      ]
+    },
+    {
+      "id": "https://openalex.org/W1000000009",
+      "title": "Not a supported venue",
+      "publication_year": 2024,
+      "primary_location": {
+        "source": {
+          "id": "https://openalex.org/S9990000002",
+          "display_name": "Journal of Unrelated Studies"
+        },
+        "landing_page_url": "https://example.org/journal"
+      },
+      "authorships": [
+        {
+          "author_position": "first",
+          "author": {
+            "id": "https://openalex.org/A5000000001",
+            "display_name": "Ada Fixture"
+          },
+          "institutions": [{"display_name": "Example University"}],
+          "raw_affiliation_strings": ["Example University"]
+        }
+      ]
+    }
+  ]
+}

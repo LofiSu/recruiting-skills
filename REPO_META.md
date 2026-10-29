@@ -27,5 +27,5 @@ python
 - Root Skill install name: `researcher-recruiting-skill` (the `name` in the root `SKILL.md`)
 - Second Skill install name: `research-talent-scout`
 - Hosts: Codex (`${CODEX_HOME:-~/.codex}/skills`), Claude Code (`~/.claude/skills` or `.claude/skills`), Cursor (`~/.cursor/skills`, `~/.agents/skills`, or the matching project directories). Cursor also reads the Codex and Claude directories.
-- The repository includes the SQLite index engine and synthetic fixtures at `research-talent-scout/tests/fixtures/records.jsonl`. It does not include a live candidate database.
+- The repository includes the SQLite index engine, synthetic fixtures at `research-talent-scout/tests/fixtures/records.jsonl`, OpenAlex and Semantic Scholar connectors, and a static demo report at `examples/demo-report/index.html`. It does not include a live candidate database.
 - License: MIT
