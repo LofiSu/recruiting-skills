@@ -30,6 +30,10 @@ bash tests/verify-all.sh
 
 问题反馈可以使用 Skill bug 或新 Skill 提案模板。
 
+## 安全与行为
+
+漏洞按 [`SECURITY.md`](SECURITY.md) 私下报告，不要开公开 issue。参与讨论请遵守 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)。Issue、PR 和提交里不要粘贴真实候选人资料、API key，或根据姓名拼出来的邮箱。
+
 ## English
 
 Thanks for improving these recruiting Agent Skills. The repository targets Codex, Claude, Cursor, and any other host that discovers `SKILL.md`.
@@ -39,3 +43,5 @@ Run `bash tests/verify-all.sh` from a clean Python 3.10+ environment before open
 Bug fixes, deterministic tests, and new `<skill-name>/SKILL.md` packages are welcome. Register every new Skill in the README catalog, the install instructions, and `tests/verify-all.sh`. Keep the work limited to public professional information, and leave generated `outputs/` reports and real candidate data out of Git. [`examples/demo-report/index.html`](examples/demo-report/index.html) is the allowed static sample of the public arXiv:1706.03762 report, with no email addresses. [`research-talent-scout/examples/sample-records.jsonl`](research-talent-scout/examples/sample-records.jsonl) is synthetic connector output. The clone directory is `recruiting-skills`; the root Skill install name stays `researcher-recruiting-skill`.
 
 Use the Skill bug or new-skill proposal issue templates, and describe both the behavior change and the verification result in the pull request. Update Chinese and English docs together.
+
+Report vulnerabilities in private using [`SECURITY.md`](SECURITY.md). Participation in issues, pull requests, and commit discussion follows [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Do not paste real candidate records, API keys, or emails guessed from a name.

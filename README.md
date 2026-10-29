@@ -244,7 +244,7 @@ home:   https://<owner>.github.io/<repository>/
 - 同名身份存在歧义时保持 `可能匹配` 或独立记录；
 - 输出用于人工复核，不进行候选人排名、自动雇佣决策或自动外联。
 
-贡献方式见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。许可证为 [MIT](LICENSE)。
+贡献方式见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。社区行为准则见 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)。安全问题按 [`SECURITY.md`](SECURITY.md) 私下报告，不要开公开 issue。许可证为 [MIT](LICENSE)。
 
 ---
 
@@ -459,4 +459,4 @@ To see the report layout before any Pages publish, open [`examples/demo-report/i
 
 Only public professional information is collected. The Skills never guess email addresses, log in to restricted platforms, bypass access controls, solve CAPTCHAs, or treat search snippets as verified evidence. Outputs are research leads for human review, not candidate rankings, employment decisions, or automated outreach.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Licensed under [MIT](LICENSE).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Report vulnerabilities in private using [`SECURITY.md`](SECURITY.md). Licensed under [MIT](LICENSE).
