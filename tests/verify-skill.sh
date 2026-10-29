@@ -34,6 +34,22 @@ require "$publishing" 'scripts/build_pages_index.py' 'Pages homepage generator'
 require "$publishing" 'git add .nojekyll index.html "<arxiv-id>/index.html"' 'homepage staged with report'
 require "$skill" 'collection homepage URL' 'homepage returned after publication'
 require "$verify_all" 'python3 -m unittest tests.test_build_pages_index -v' 'homepage tests in full verification'
+require "$root/README.md" 'https://github.com/LofiSu/recruiting-skills.git' 'current clone URL'
+require "$root/README.md" 'cd recruiting-skills' 'clone directory name'
+require "$root/LICENSE" 'MIT License' 'MIT license'
+require "$root/.gitignore" 'outputs/' 'local report directory ignored'
+require "$root/.github/workflows/ci.yml" 'bash tests/verify-all.sh' 'CI verification command'
+require "$verify_all" 'scripts/validate_skill_frontmatter.py' 'portable frontmatter validator'
+
+if grep -Fq 'https://github.com/LofiSu/researcher-recruiting-skill.git' "$root/README.md"; then
+  printf 'FAIL: README still documents the pre-rename clone URL\n' >&2
+  exit 1
+fi
+
+if grep -Fq '/Users/' "$verify_all"; then
+  printf 'FAIL: verify-all.sh contains a machine-local path\n' >&2
+  exit 1
+fi
 
 if grep -Eqi '<script|<link[^>]+stylesheet|url\([[:space:]]*["'"'"']?https?://' "$template"; then
   printf 'FAIL: template contains an external runtime or asset\n' >&2

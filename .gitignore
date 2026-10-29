@@ -8,4 +8,6 @@ __pycache__/
 *.sqlite
 results/
 dist/
+
+# Paper-mode reports written locally as outputs/<arxiv-id>/report.html
 outputs/

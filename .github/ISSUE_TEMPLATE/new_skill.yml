@@ -1,0 +1,33 @@
+name: New skill proposal / 新技能提案
+description: Propose another recruiting Agent Skill for this collection. 提议加入本集合的新招聘 Skill。
+title: "[skill] "
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Proposed skill name
+      description: Kebab-case directory name, matching the SKILL.md name field. 使用短横线小写，并与 SKILL.md 的 name 一致。
+      placeholder: interview-loop-notes
+    validations:
+      required: true
+  - type: textarea
+    id: job
+    attributes:
+      label: What job should it do?
+      description: The user request that should trigger it, and how it differs from researcher-recruiting-skill and research-talent-scout. 说明触发场景，以及它和现有两个 Skill 的分工。
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Inputs, outputs, and collaboration
+      description: Stable inputs and outputs. If it collaborates with an existing skill, name the handoff boundary. 如果需要协作，写清交接边界。
+    validations:
+      required: true
+  - type: textarea
+    id: compliance
+    attributes:
+      label: Public-information boundary
+      description: Which public professional sources it would use. Proposals that require login, guessed emails, ranking, automated hiring decisions, or automated outreach will not be accepted. 只接受公开职业信息；不接受登录、猜测邮箱、排名、自动雇佣决策或自动外联。
+    validations:
+      required: true
