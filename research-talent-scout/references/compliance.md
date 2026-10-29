@@ -3,6 +3,7 @@
 ## Allowed
 
 - Use public professional pages, official scholarly records, personal CVs, institution or laboratory profiles, GitHub, and OpenReview.
+- Use the public OpenAlex and Semantic Scholar metadata APIs. Send `OPENALEX_API_KEY` or `S2_API_KEY` only as request headers, and stay within the published rate limits.
 - Record public professional homepages and contact routes only when a directly accessible page supports them.
 - Preserve missing data, ambiguity, conflicts, source failures, timestamps, and coverage gaps.
 

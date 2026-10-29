@@ -6,6 +6,7 @@ __pycache__/
 .env
 *.sqlite3
 *.sqlite
+research-talent-scout/data/
 results/
 dist/
 

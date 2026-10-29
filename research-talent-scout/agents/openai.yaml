@@ -1,4 +1,4 @@
 interface:
   display_name: "Research Talent Scout"
   short_description: "Find evidence-backed graduate researcher candidates quickly"
-  default_prompt: "Find graduate researcher candidates matching my graduation-year, degree, venue, and authorship requirements."
+  default_prompt: "Find graduate researcher candidates matching my graduation-year, degree, venue, and authorship requirements. If the index does not cover the request, populate it from OpenAlex or Semantic Scholar first and keep graduation unconfirmed."

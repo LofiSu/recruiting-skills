@@ -1,0 +1,15 @@
+{
+  "total": 1,
+  "offset": 0,
+  "data": [
+    {
+      "authorId": "1111111",
+      "name": "Cara Fixture",
+      "affiliations": ["Example University"],
+      "homepage": "https://example.edu/cara",
+      "url": "https://www.semanticscholar.org/author/1111111",
+      "email": "cara@example.edu",
+      "externalIds": {}
+    }
+  ]
+}

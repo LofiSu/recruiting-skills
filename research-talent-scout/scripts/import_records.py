@@ -10,25 +10,26 @@ except ModuleNotFoundError:
     from init_index import connect, initialize
 
 
+VENUE_NAMES = {
+    "ACL": ["ACL", "Annual Meeting of the Association for Computational Linguistics"],
+    "ICML": ["ICML", "International Conference on Machine Learning"],
+    "ICLR": ["ICLR", "International Conference on Learning Representations"],
+    "NeurIPS": ["NeurIPS", "NIPS", "Neural Information Processing Systems"],
+    "EMNLP": ["EMNLP", "Empirical Methods in Natural Language Processing"],
+    "CVPR": ["CVPR", "Computer Vision and Pattern Recognition"],
+    "AAAI": ["AAAI", "AAAI Conference on Artificial Intelligence"],
+    "ICCV": ["ICCV", "International Conference on Computer Vision"],
+    "MLSys": ["MLSys", "Conference on Machine Learning and Systems"],
+    "OSDI": ["OSDI", "Operating Systems Design and Implementation"],
+    "EuroSys": ["EuroSys"],
+    "ASPLOS": ["ASPLOS"],
+    "ISCA": ["ISCA", "International Symposium on Computer Architecture"],
+    "SC": ["SC", "Supercomputing"],
+    "PPoPP": ["PPoPP", "Principles and Practice of Parallel Programming"],
+}
 VENUE_ALIASES = {
     alias.casefold(): canonical
-    for canonical, aliases in {
-        "ACL": ["ACL", "Annual Meeting of the Association for Computational Linguistics"],
-        "ICML": ["ICML", "International Conference on Machine Learning"],
-        "ICLR": ["ICLR", "International Conference on Learning Representations"],
-        "NeurIPS": ["NeurIPS", "NIPS", "Neural Information Processing Systems"],
-        "EMNLP": ["EMNLP", "Empirical Methods in Natural Language Processing"],
-        "CVPR": ["CVPR", "Computer Vision and Pattern Recognition"],
-        "AAAI": ["AAAI", "AAAI Conference on Artificial Intelligence"],
-        "ICCV": ["ICCV", "International Conference on Computer Vision"],
-        "MLSys": ["MLSys", "Conference on Machine Learning and Systems"],
-        "OSDI": ["OSDI", "Operating Systems Design and Implementation"],
-        "EuroSys": ["EuroSys"],
-        "ASPLOS": ["ASPLOS"],
-        "ISCA": ["ISCA", "International Symposium on Computer Architecture"],
-        "SC": ["SC", "Supercomputing"],
-        "PPoPP": ["PPoPP", "Principles and Practice of Parallel Programming"],
-    }.items()
+    for canonical, aliases in VENUE_NAMES.items()
     for alias in aliases
 }
 DEGREES = {"phd", "masters"}

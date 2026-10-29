@@ -69,7 +69,7 @@
 - 将毕业年份分为 `confirmed`、`likely_needs_verification`、`unknown`、`stale` 和 `conflict`；
 - 不会仅凭姓名合并同名研究者；
 - 返回全部索引内匹配者，并显示索引覆盖和新鲜度限制；
-- 使用 SQLite 进行快速查询。真实候选人数据需要通过规范化 JSONL 导入或后续数据连接器建立。
+- 使用 SQLite 进行快速查询。可以用 OpenAlex 或 Semantic Scholar 的公开元数据 API 写入 JSONL 再导入；仓库不附带真实候选人数据库。
 
 ## 安装
 
@@ -154,6 +154,62 @@ python3 scripts/query_candidates.py \
 
 `data/*.sqlite` 已被忽略，不会进入版本库。
 
+## 从 OpenAlex / Semantic Scholar 导入
+
+连接器在 `research-talent-scout/scripts/connectors/`，入口是 `scripts/fetch_records.py`。它们只读公开学术元数据，写成上面的 JSONL。不猜测邮箱，不下载全文，不把毕业年份标成 `confirmed`。`--degree` 是调用者给索引用的标签，不是 API 事实。`identity_state: verified` 只表示这一行对应一个来源作者 ID，不是雇佣核验。同名作者不会被合并。
+
+默认请求间隔：OpenAlex **0.2 秒**（低于无 key 的每秒 10 次，也低于免费 key 的每秒 30 次）；Semantic Scholar **1.1 秒**（按 introductory key 的每秒 1 次）。收到 HTTP 429 或 503 时最多重试 3 次，并遵守 `Retry-After`。
+
+| 变量 | 作用 |
+| --- | --- |
+| `OPENALEX_API_KEY` | 真实拉取时需要。以 `Authorization: Bearer` 发送，不要放进命令行参数。不设 key 时只有很小的测试额度，并且不会用 cursor 翻页。列表请求大约 10 credits，免费 key 每日大约 100,000 credits。 |
+| `S2_API_KEY` | 可选。以请求头 `x-api-key` 发送。有 key 时 introductory 限额是每秒 1 次。不设 key 时走公共池（文档写明共享每秒 1000 次，拥挤时会更慢）。 |
+
+```bash
+cd research-talent-scout
+export OPENALEX_API_KEY=...   # 不要提交到 git
+export S2_API_KEY=...         # 可选
+
+python3 scripts/fetch_records.py \
+  --source openalex \
+  --venue NeurIPS \
+  --year 2024 \
+  --degree phd \
+  --output data/openalex.jsonl
+
+python3 scripts/fetch_records.py \
+  --source semanticscholar \
+  --author-id 1234567 \
+  --degree phd \
+  --output data/s2.jsonl
+
+python3 scripts/init_index.py --db data/candidates.sqlite
+python3 scripts/import_records.py --db data/candidates.sqlite --input data/openalex.jsonl
+```
+
+也可以按作者姓名搜索（`--author`）。多个来源 ID 会各成一行。Semantic Scholar 的论文检索按相关度排序，不是某个会议的全量普查，默认最多 25 篇。一作且 venue 能对上支持列表时记为 `main_first`；venue 字符串写明 workshop、findings、short 或 demo 时分开记；其余作者记为 `unclassified`。不推断共同一作。
+
+离线样例是合成作者 Ada Fixture 和 Ben Fixture，不是真人库：
+
+```bash
+python3 scripts/import_records.py \
+  --db data/candidates.sqlite \
+  --input examples/sample-records.jsonl
+```
+
+## 演示报告
+
+静态样例：[`examples/demo-report/index.html`](examples/demo-report/index.html)。它用现有报告模板填入公开论文 [arXiv:1706.03762](https://arxiv.org/abs/1706.03762)《Attention Is All You Need》的官方作者顺序，以及论文 HTML 里写明的机构。联系路径全部是「暂未找到」，没有邮箱，也没有 `mailto` 链接。
+
+在浏览器中打开该文件即可看版式。GitHub 会把 HTML 显示成源码。用下面的命令可以按模板重新生成，并检查已提交的文件是否一致：
+
+```bash
+python3 scripts/render_demo_report.py
+python3 scripts/render_demo_report.py --check
+```
+
+这个样例留在 `main` 上，方便审阅。CI 不会把它发布到 `gh-pages`。
+
 ## 验证
 
 从仓库根目录运行：
@@ -162,7 +218,7 @@ python3 scripts/query_candidates.py \
 bash tests/verify-all.sh
 ```
 
-它会验证论文作者 Skill 的静态契约、两个 Skill 的 frontmatter、Pages 首页生成器，以及 `research-talent-scout` 的索引、导入、查询、证据状态和报告测试。GitHub Actions 在推送到 `main` 和指向 `main` 的 pull request 上运行同一命令。frontmatter 检查使用仓库内的标准库脚本，不依赖某台机器上的 skill-creator 路径。
+它会验证论文作者 Skill 的静态契约、两个 Skill 的 frontmatter、Pages 首页生成器、演示报告，以及 `research-talent-scout` 的索引、导入、查询、连接器映射和报告测试。连接器测试使用仓库里的 HTTP fixture，不访问网络。GitHub Actions 在推送到 `main` 和指向 `main` 的 pull request 上运行同一命令。frontmatter 检查使用仓库内的标准库脚本，不依赖某台机器上的 skill-creator 路径。
 
 ## GitHub Pages
 
@@ -176,6 +232,8 @@ home:   https://<owner>.github.io/<repository>/
 ```
 
 本仓库对应 `https://lofisu.github.io/recruiting-skills/`。首页由 [`scripts/build_pages_index.py`](scripts/build_pages_index.py) 和 [`assets/pages-index-template.html`](assets/pages-index-template.html) 生成。如果 GitHub 写入、Pages 设置或部署验证不可用，Skill 只返回本地报告，不会虚构线上地址。
+
+想先看报告长什么样，打开仓库里的 [`examples/demo-report/index.html`](examples/demo-report/index.html)。那是提交在 `main` 上的静态样例，不是 `gh-pages` 上的一篇已发布报告。
 
 ## 数据与合规边界
 
@@ -239,9 +297,10 @@ Register every new Skill in the catalog table, installation instructions, and `t
 - preserves confirmed, inferred, unknown, stale, and conflicting graduation evidence;
 - keeps ambiguous same-name researchers separate;
 - returns all matches inside declared index coverage and reports freshness limitations;
-- uses a lightweight SQLite index for fast repeated queries.
+- uses a lightweight SQLite index for fast repeated queries;
+- can fill that index from the OpenAlex and Semantic Scholar public metadata APIs.
 
-Normalized real-world records or data-source connectors populate the index. Until then, queries run against whatever SQLite file you import.
+The connectors write normalized JSONL. They do not ship a live candidate database, and they do not mark graduation years as confirmed.
 
 ## Installation
 
@@ -293,6 +352,62 @@ public professional evidence.
 
 “All candidates” means all matches within declared index coverage, not an exhaustive live-web census of every researcher.
 
+## Populate the index from OpenAlex or Semantic Scholar
+
+The clients live in `research-talent-scout/scripts/connectors/`. `scripts/fetch_records.py` writes JSONL for `import_records.py`. It reads public scholarly metadata only: no email guessing, no full-text download, and no confirmed graduation year. `--degree` is a caller-supplied index label, not an API fact. `identity_state: verified` means the row is one source author id, not a hiring check. People who share a display name stay on separate rows.
+
+Default pause: **0.2s** for OpenAlex (under the keyless cap of 10 requests/second and the free-key cap of 30) and **1.1s** for Semantic Scholar (the introductory API-key limit is 1 request/second). HTTP 429 and 503 responses are retried up to three times, honoring `Retry-After`.
+
+| Variable | Role |
+| --- | --- |
+| `OPENALEX_API_KEY` | Required for real OpenAlex use. Sent as `Authorization: Bearer`, never as an argv flag. Without a key the API allows only a small test budget and this client does not follow cursor pages. List calls cost about 10 credits; a free key is about 100,000 credits per day. |
+| `S2_API_KEY` | Optional. Sent as the `x-api-key` header. With a key, the introductory limit is 1 request/second. Without a key, calls share the public pool (documented as 1000 requests/second shared, and slower when that pool is busy). |
+
+```bash
+cd research-talent-scout
+export OPENALEX_API_KEY=...   # do not commit
+export S2_API_KEY=...         # optional
+
+python3 scripts/fetch_records.py \
+  --source openalex \
+  --venue NeurIPS \
+  --year 2024 \
+  --degree phd \
+  --output data/openalex.jsonl
+
+python3 scripts/fetch_records.py \
+  --source semanticscholar \
+  --author-id 1234567 \
+  --degree phd \
+  --output data/s2.jsonl
+
+python3 scripts/init_index.py --db data/candidates.sqlite
+python3 scripts/import_records.py --db data/candidates.sqlite --input data/openalex.jsonl
+```
+
+`--author` searches by name. Semantic Scholar paper search is relevance-ranked, not a complete census of a venue, and the default cap is 25 works. The first author of a supported main-conference venue is `main_first`. Workshop, findings, short, and demo are recorded only when the venue string says so. Every other author is `unclassified`. Equal contribution is not inferred.
+
+The offline sample uses synthetic people (Ada Fixture and Ben Fixture), not a real candidate database:
+
+```bash
+python3 scripts/import_records.py \
+  --db data/candidates.sqlite \
+  --input examples/sample-records.jsonl
+```
+
+## Demo report
+
+The static sample is [`examples/demo-report/index.html`](examples/demo-report/index.html). It fills the existing report template with the public author order of [arXiv:1706.03762](https://arxiv.org/abs/1706.03762), *Attention Is All You Need*, and the affiliations printed on the paper HTML. Every contact path is “暂未找到”. The sample contains no email address and no `mailto` link.
+
+Open that file in a browser to see the layout. GitHub renders the file as source. Regenerate it from the template, and check that the committed copy matches:
+
+```bash
+python3 scripts/render_demo_report.py
+python3 scripts/render_demo_report.py --check
+```
+
+The sample stays on `main` so it can be reviewed in the repository. CI does not publish it to `gh-pages`.
+
 ## Demo index
 
 The quick start imports synthetic people from [`research-talent-scout/tests/fixtures/records.jsonl`](research-talent-scout/tests/fixtures/records.jsonl). Names such as Alice Example are fixtures, not a candidate database.
@@ -323,7 +438,7 @@ Run from the repository root:
 bash tests/verify-all.sh
 ```
 
-This validates both Skill structures, frontmatter, the original paper-mode contract, the Pages homepage generator, and the scout's deterministic index, import, query, evidence-state, and rendering tests. GitHub Actions runs the same command on pushes and pull requests to `main`. The frontmatter check is the in-repo standard-library script `scripts/validate_skill_frontmatter.py`.
+This validates both Skill structures, frontmatter, the original paper-mode contract, the Pages homepage generator, the demo report, and the scout's deterministic index, import, query, connector-mapping, evidence-state, and rendering tests. Connector tests use checked-in HTTP fixtures and do not touch the network. GitHub Actions runs the same command on pushes and pull requests to `main`. The frontmatter check is the in-repo standard-library script `scripts/validate_skill_frontmatter.py`.
 
 ## GitHub Pages
 
@@ -337,6 +452,8 @@ home:   https://<owner>.github.io/<repository>/
 ```
 
 For this repository the collection home is `https://lofisu.github.io/recruiting-skills/`. [`scripts/build_pages_index.py`](scripts/build_pages_index.py) renders it from [`assets/pages-index-template.html`](assets/pages-index-template.html). If GitHub writes, Pages settings, or deployment checks are unavailable, the Skill returns the local report and does not invent a live URL.
+
+To see the report layout before any Pages publish, open [`examples/demo-report/index.html`](examples/demo-report/index.html). That file is a static sample committed on `main`, not a report published on `gh-pages`.
 
 ## Data boundaries
 

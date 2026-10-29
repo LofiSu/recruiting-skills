@@ -23,7 +23,8 @@ bash tests/verify-all.sh
 ## 需要保持的边界
 
 - 只处理公开职业信息。不加入登录、绕过访问控制、猜测邮箱、候选人排名、自动雇佣决策或自动外联。
-- 不提交真实候选人数据库、个人数据抓取结果或本地生成报告。`outputs/` 已在 `.gitignore` 中。
+- 不提交真实候选人数据库、个人数据抓取结果或 `outputs/` 里的本地报告。`outputs/` 已在 `.gitignore` 中。
+- [`examples/demo-report/index.html`](examples/demo-report/index.html) 是允许留在 `main` 上的静态演示，内容是公开论文 arXiv:1706.03762 的报告版式，且不收录邮箱。[`research-talent-scout/examples/sample-records.jsonl`](research-talent-scout/examples/sample-records.jsonl) 是合成的连接器样例，不是真人库。
 - 仓库克隆目录是 `recruiting-skills`。根目录 Skill 的安装名保持 `researcher-recruiting-skill`。
 - `SKILL.md` 的 `name` 和 `description` 是宿主发现契约。除非是明确缺陷，不要为了通过检查而改写触发条件。
 
@@ -35,6 +36,6 @@ Thanks for improving these recruiting Agent Skills. The repository targets Codex
 
 Run `bash tests/verify-all.sh` from a clean Python 3.10+ environment before opening a pull request. The suite uses only the standard library.
 
-Bug fixes, deterministic tests, and new `<skill-name>/SKILL.md` packages are welcome. Register every new Skill in the README catalog, the install instructions, and `tests/verify-all.sh`. Keep the work limited to public professional information, and leave generated reports and real candidate data out of Git. The clone directory is `recruiting-skills`; the root Skill install name stays `researcher-recruiting-skill`.
+Bug fixes, deterministic tests, and new `<skill-name>/SKILL.md` packages are welcome. Register every new Skill in the README catalog, the install instructions, and `tests/verify-all.sh`. Keep the work limited to public professional information, and leave generated `outputs/` reports and real candidate data out of Git. [`examples/demo-report/index.html`](examples/demo-report/index.html) is the allowed static sample of the public arXiv:1706.03762 report, with no email addresses. [`research-talent-scout/examples/sample-records.jsonl`](research-talent-scout/examples/sample-records.jsonl) is synthetic connector output. The clone directory is `recruiting-skills`; the root Skill install name stays `researcher-recruiting-skill`.
 
 Use the Skill bug or new-skill proposal issue templates, and describe both the behavior change and the verification result in the pull request. Update Chinese and English docs together.
