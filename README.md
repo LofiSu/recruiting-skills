@@ -46,7 +46,7 @@
 - 跨 Skill 协作必须定义稳定输入、输出、责任边界和失败降级。
 - 通用合规原则保持一致：只处理公开职业信息，不执行招聘排名、自动雇佣决策或自动外联。
 
-新增 Skill 后，需要在顶部目录表、安装说明和统一验证脚本中登记。发现用的仓库简介和 GitHub topics 写在 [`REPO_META.md`](REPO_META.md)；这些设置不能靠 git 文件自动生效。
+新增 Skill 后，需要在顶部目录表、安装说明和统一验证脚本中登记。发现用的仓库简介和 GitHub topics 写在 [`REPO_META.md`](REPO_META.md)；这些设置不能靠 git 文件自动生效。2026-10-29 的对照（可安装 `SKILL.md`、演示报告、双语 README、topics、MIT、CI，以及当时尚未套用的 topics）见 [`docs/trending-notes-2026-10-29.md`](docs/trending-notes-2026-10-29.md)。给代理看的短索引是根目录 [`llms.txt`](llms.txt)。
 
 ## 功能
 
@@ -244,7 +244,7 @@ home:   https://<owner>.github.io/<repository>/
 - 同名身份存在歧义时保持 `可能匹配` 或独立记录；
 - 输出用于人工复核，不进行候选人排名、自动雇佣决策或自动外联。
 
-贡献方式见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。许可证为 [MIT](LICENSE)。
+贡献方式见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。社区行为准则见 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)。安全问题按 [`SECURITY.md`](SECURITY.md) 私下报告，不要开公开 issue。许可证为 [MIT](LICENSE)。
 
 ---
 
@@ -275,7 +275,7 @@ The handoff uses a unique `batch_id`, stable `candidate_id` values, and an absol
 - Cross-Skill workflows must define stable inputs, outputs, ownership, and failure behavior.
 - Shared compliance rules permit only public professional information and prohibit candidate ranking, automated employment decisions, and automated outreach.
 
-Register every new Skill in the catalog table, installation instructions, and `tests/verify-all.sh`. Suggested GitHub topics and the About description live in [`REPO_META.md`](REPO_META.md); GitHub does not apply those settings from a file.
+Register every new Skill in the catalog table, installation instructions, and `tests/verify-all.sh`. Suggested GitHub topics and the About description live in [`REPO_META.md`](REPO_META.md); GitHub does not apply those settings from a file. The 2026-10-29 map of installable `SKILL.md` files, the demo report, the bilingual README, topics, MIT, and CI — including topics that were still unset — is [`docs/trending-notes-2026-10-29.md`](docs/trending-notes-2026-10-29.md). The short index for agents is [`llms.txt`](llms.txt) at the repository root.
 
 ## Features
 
@@ -459,4 +459,4 @@ To see the report layout before any Pages publish, open [`examples/demo-report/i
 
 Only public professional information is collected. The Skills never guess email addresses, log in to restricted platforms, bypass access controls, solve CAPTCHAs, or treat search snippets as verified evidence. Outputs are research leads for human review, not candidate rankings, employment decisions, or automated outreach.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Licensed under [MIT](LICENSE).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Report vulnerabilities in private using [`SECURITY.md`](SECURITY.md). Licensed under [MIT](LICENSE).

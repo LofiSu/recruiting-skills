@@ -1,0 +1,29 @@
+# recruiting-skills
+
+> Agent Skills for researcher recruiting: arXiv author enrichment (`researcher-recruiting-skill`) and an indexed cohort talent scout (`research-talent-scout`). Public professional evidence only. MIT. No live candidate database is shipped.
+
+Hosts discover a skill from the `name` in its `SKILL.md`. Clone `https://github.com/LofiSu/recruiting-skills.git` and symlink the repository root as `researcher-recruiting-skill` and `research-talent-scout/` as `research-talent-scout`. Install directories for Codex, Claude Code, and Cursor are in the README. Do not commit `OPENALEX_API_KEY`, `S2_API_KEY`, `data/*.sqlite`, or `outputs/` reports.
+
+## Key paths
+
+- [SKILL.md](https://github.com/LofiSu/recruiting-skills/blob/main/SKILL.md): Root skill `researcher-recruiting-skill`. Paper mode resolves one arXiv paper, keeps the official author order, and writes an evidence HTML report. Candidate-batch mode enriches only the stable IDs handed off by the scout.
+- [research-talent-scout/](https://github.com/LofiSu/recruiting-skills/tree/main/research-talent-scout): Skill `research-talent-scout`. Local SQLite index, deterministic graduation and venue filters, and OpenAlex / Semantic Scholar connectors. Graduation years imported from those APIs stay `unknown`.
+- [examples/demo-report/](https://github.com/LofiSu/recruiting-skills/tree/main/examples/demo-report): Static report sample for arXiv:1706.03762. Affiliations come from the public paper HTML. No email addresses and no `mailto` links. Open `index.html` in a browser.
+- [REPO_META.md](https://github.com/LofiSu/recruiting-skills/blob/main/REPO_META.md): GitHub About text and topics to apply by hand. Discovery topics: `agent-skills`, `recruiting`, `arxiv`, `talent-scout`, `research`, `python`. The same file also lists host topics `codex` and `claude`.
+
+## Contracts and checks
+
+- [research-talent-scout/SKILL.md](https://github.com/LofiSu/recruiting-skills/blob/main/research-talent-scout/SKILL.md): Cohort skill contract, including the single `candidate_enrichment_batch` handoff.
+- [references/compliance.md](https://github.com/LofiSu/recruiting-skills/blob/main/references/compliance.md): Public-professional boundary. No guessed emails, login bypass, ranking, automated hiring decisions, or automated outreach.
+- [README.md](https://github.com/LofiSu/recruiting-skills/blob/main/README.md): Bilingual install, collaboration diagram, connector environment variables, and verification command `bash tests/verify-all.sh`.
+- [docs/trending-notes-2026-10-29.md](https://github.com/LofiSu/recruiting-skills/blob/main/docs/trending-notes-2026-10-29.md): Dated map of installable skills, demo, bilingual README, topics, MIT, and CI. Records that About topics were still empty on that date.
+- [.github/workflows/ci.yml](https://github.com/LofiSu/recruiting-skills/blob/main/.github/workflows/ci.yml): Runs `bash tests/verify-all.sh` on pushes and pull requests to `main`.
+
+## Optional
+
+- [CONTRIBUTING.md](https://github.com/LofiSu/recruiting-skills/blob/main/CONTRIBUTING.md): Verification, fixture rules, and where to file a skill bug versus a new skill.
+- [SECURITY.md](https://github.com/LofiSu/recruiting-skills/blob/main/SECURITY.md): Private vulnerability reports. Do not open a public issue for credential leaks or report-HTML injection.
+- [CODE_OF_CONDUCT.md](https://github.com/LofiSu/recruiting-skills/blob/main/CODE_OF_CONDUCT.md): Contributor Covenant 2.1 adapted for this recruiting-data project.
+- [LICENSE](https://github.com/LofiSu/recruiting-skills/blob/main/LICENSE): MIT, copyright 2026 LofiSu.
+- [research-talent-scout/tests/fixtures/records.jsonl](https://github.com/LofiSu/recruiting-skills/blob/main/research-talent-scout/tests/fixtures/records.jsonl): Synthetic people used by the index tests. Not a candidate database.
+- [assets/report-template.html](https://github.com/LofiSu/recruiting-skills/blob/main/assets/report-template.html): Single-file report shell. No external scripts, stylesheets, or fonts.
