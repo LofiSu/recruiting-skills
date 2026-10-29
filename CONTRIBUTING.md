@@ -28,7 +28,7 @@ bash tests/verify-all.sh
 - 仓库克隆目录是 `recruiting-skills`。根目录 Skill 的安装名保持 `researcher-recruiting-skill`。
 - `SKILL.md` 的 `name` 和 `description` 是宿主发现契约。除非是明确缺陷，不要为了通过检查而改写触发条件。
 
-问题反馈可以使用 Skill bug 或新 Skill 提案模板。
+问题反馈可以使用 Skill bug 或新 Skill 提案表单。表单不可用时，用 [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) 和 [`feature_request.md`](.github/ISSUE_TEMPLATE/feature_request.md)。新 Skill 仍走提案表单，不要写成功能请求。
 
 ## 安全与行为
 
@@ -42,6 +42,6 @@ Run `bash tests/verify-all.sh` from a clean Python 3.10+ environment before open
 
 Bug fixes, deterministic tests, and new `<skill-name>/SKILL.md` packages are welcome. Register every new Skill in the README catalog, the install instructions, and `tests/verify-all.sh`. Keep the work limited to public professional information, and leave generated `outputs/` reports and real candidate data out of Git. [`examples/demo-report/index.html`](examples/demo-report/index.html) is the allowed static sample of the public arXiv:1706.03762 report, with no email addresses. [`research-talent-scout/examples/sample-records.jsonl`](research-talent-scout/examples/sample-records.jsonl) is synthetic connector output. The clone directory is `recruiting-skills`; the root Skill install name stays `researcher-recruiting-skill`.
 
-Use the Skill bug or new-skill proposal issue templates, and describe both the behavior change and the verification result in the pull request. Update Chinese and English docs together.
+Use the Skill bug or new-skill proposal forms, and describe both the behavior change and the verification result in the pull request. Update Chinese and English docs together. When those forms are not shown, the Markdown templates [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) and [`feature_request.md`](.github/ISSUE_TEMPLATE/feature_request.md) collect the same facts. A new Skill still belongs on the proposal form.
 
 Report vulnerabilities in private using [`SECURITY.md`](SECURITY.md). Participation in issues, pull requests, and commit discussion follows [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Do not paste real candidate records, API keys, or emails guessed from a name.

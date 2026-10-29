@@ -23,6 +23,7 @@ python
 
 ## Discovery notes
 
+- Agent index: [`llms.txt`](llms.txt) lists the short project summary and the key paths (`SKILL.md`, `research-talent-scout/`, `examples/demo-report/`, this file).
 - Clone URL: `https://github.com/LofiSu/recruiting-skills.git`
 - Root Skill install name: `researcher-recruiting-skill` (the `name` in the root `SKILL.md`)
 - Second Skill install name: `research-talent-scout`
